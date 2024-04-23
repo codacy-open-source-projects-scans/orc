@@ -37,8 +37,6 @@
 /* See _orc_compiler_init() */
 extern int _orc_codemem_alignment;
 
-typedef struct _OrcCodeRegion OrcCodeRegion;
-
 struct _OrcCodeRegion {
   orc_uint8 *write_ptr;
   orc_uint8 *exec_ptr;
@@ -59,11 +57,27 @@ struct _OrcCodeChunk {
 };
 
 
-static void orc_code_region_allocate_codemem (OrcCodeRegion *region);
+static int orc_code_region_allocate_codemem (OrcCodeRegion *region);
 
 static OrcCodeRegion **orc_code_regions;
 static int orc_code_n_regions;
 
+
+OrcCodeRegion *
+orc_code_region_alloc (void)
+{
+  OrcCodeRegion *region;
+
+  region = malloc(sizeof(OrcCodeRegion));
+  memset (region, 0, sizeof(OrcCodeRegion));
+
+  if (!orc_code_region_allocate_codemem (region)) {
+    free(region);
+    return NULL;
+  }
+
+  return region;
+}
 
 static OrcCodeRegion *
 orc_code_region_new (void)
@@ -71,10 +85,11 @@ orc_code_region_new (void)
   OrcCodeRegion *region;
   OrcCodeChunk *chunk;
 
-  region = malloc(sizeof(OrcCodeRegion));
-  memset (region, 0, sizeof(OrcCodeRegion));
+  region = orc_code_region_alloc();
 
-  orc_code_region_allocate_codemem (region);
+  if (!region) {
+    return NULL;
+  }
 
   chunk = malloc(sizeof(OrcCodeChunk));
   memset (chunk, 0, sizeof(OrcCodeChunk));
@@ -143,13 +158,18 @@ orc_code_region_get_free_chunk (int size)
     }
   }
 
-  orc_code_regions = realloc (orc_code_regions,
-      sizeof(void *)*(orc_code_n_regions+1));
-  if (!orc_code_regions)
+  region = orc_code_region_new ();
+  if (!region)
     return NULL;
 
-  orc_code_regions[orc_code_n_regions] = orc_code_region_new ();
-  region = orc_code_regions[orc_code_n_regions];
+  orc_code_regions = realloc (orc_code_regions,
+      sizeof(void *)*(orc_code_n_regions+1));
+  if (!orc_code_regions) {
+    free(region);
+    return NULL;
+  }
+
+  orc_code_regions[orc_code_n_regions] = region;
   orc_code_n_regions++;
 
   for(chunk = region->chunks; chunk; chunk = chunk->next) {
@@ -301,61 +321,77 @@ orc_code_region_allocate_codemem_anon_map (OrcCodeRegion *region)
   return TRUE;
 }
 
-static void
+int
 orc_code_region_allocate_codemem (OrcCodeRegion *region)
 {
   const char *tmpdir;
 
   tmpdir = getenv ("XDG_RUNTIME_DIR");
   if (tmpdir && orc_code_region_allocate_codemem_dual_map (region,
-        tmpdir, FALSE)) return;
+        tmpdir, FALSE)) return TRUE;
 
   tmpdir = getenv ("HOME");
   if (tmpdir && orc_code_region_allocate_codemem_dual_map (region,
-        tmpdir, FALSE)) return;
+        tmpdir, FALSE)) return TRUE;
 
   tmpdir = getenv ("TMPDIR");
   if (tmpdir && orc_code_region_allocate_codemem_dual_map (region,
-        tmpdir, FALSE)) return;
+        tmpdir, FALSE)) return TRUE;
 
   if (orc_code_region_allocate_codemem_dual_map (region,
-        "/tmp", FALSE)) return;
+        "/tmp", FALSE)) return TRUE;
 
-  if (orc_code_region_allocate_codemem_anon_map (region)) return;
+  if (orc_code_region_allocate_codemem_anon_map (region)) return TRUE;
 
 #ifdef __APPLE__
   ORC_ERROR("Failed to create write and exec mmap regions.  This "
       "is probably because the Hardened Runtime is enabled without "
       "the com.apple.security.cs.allow-jit entitlement.");
 #else
-  ORC_ERROR("Failed to create write and exec mmap regions.  This "
-      "is probably because SELinux execmem check is enabled (good) "
-      "and $TMPDIR and $HOME are mounted noexec (bad).");
+  ORC_ERROR(
+      "Failed to create write+exec mappings. This "
+      "is probably because SELinux execmem check is enabled (good), "
+      "$XDG_RUNTIME_DIR, $HOME, $TMPDIR, $HOME and /tmp are mounted noexec (good), "
+      "and anonymous mappings cannot be created (really bad)."
+      );
 #endif
+  return FALSE;
 }
 
 #endif
 
 #ifdef HAVE_CODEMEM_VIRTUALALLOC
-void
+int
 orc_code_region_allocate_codemem (OrcCodeRegion *region)
 {
   /* On UWP, we can't allocate memory as executable from the start. We can only
    * set that later after compiling and copying the code over. This is a good
    * idea in general to avoid security issues, so we do it on win32 too. */
-  region->write_ptr = _virtualalloc (NULL, SIZE, MEM_COMMIT, PAGE_READWRITE);
+  void *write_ptr;
+  write_ptr = _virtualalloc (NULL, SIZE, MEM_COMMIT, PAGE_READWRITE);
+  if (!write_ptr)
+    return FALSE;
+
+  region->write_ptr = write_ptr;
   region->exec_ptr = region->write_ptr;
   region->size = SIZE;
+  return TRUE;
 }
 #endif
 
 #ifdef HAVE_CODEMEM_MALLOC
-void
+int
 orc_code_region_allocate_codemem (OrcCodeRegion *region)
 {
-  region->write_ptr = malloc(SIZE);
+  void *write_ptr;
+  write_ptr = malloc(SIZE);
+  if (!write_ptr)
+    return FALSE;
+
+  region->write_ptr = write_ptr;
   region->exec_ptr = region->write_ptr;
   region->size = SIZE;
+  return TRUE;
 }
 #endif
 
