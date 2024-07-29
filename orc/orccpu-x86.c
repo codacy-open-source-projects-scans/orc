@@ -34,6 +34,19 @@
 
 #ifdef _MSC_VER
 #  include <intrin.h>
+#elif defined(__GNUC__)
+#if __GNUC__ >= 8 && __GNUC__ < 9
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=71659
+#  include <xsaveintrin.h>
+#elif __GNUC__ < 8
+#  define ORC_NEEDS_ASM_XSAVE 1
+#endif
+#endif
+
+#if !defined(_MSC_VER) || defined(__clang__)
+#define ORC_TARGET_XSAVE __attribute__((target("xsave")))
+#else
+#define ORC_TARGET_XSAVE
 #endif
 
 #include <orc/orcdebug.h>
@@ -304,15 +317,19 @@ orc_x86_cpuid_get_branding_string (void)
 // Checks if XMM and YMM state are enabled in XCR0.
 // See 14.3 DETECTION OF INTEL® AVX INSTRUCTIONS on the
 // Intel® 64 and IA-32 Architectures Software Developer’s Manual
-#if !defined(_MSC_VER) || defined(__clang__)
-#define ORC_TARGET_XSAVE __attribute__((target("xsave")))
+#ifdef ORC_NEEDS_ASM_XSAVE
+static orc_bool check_xcr0_ymm()
+{
+  uint32_t xcr0;
+  __asm__ ("xgetbv" : "=a" (xcr0) : "c" (0) : "%edx" );
+  return ((xcr0 & 6U) == 6U);
+}
 #else
-#define ORC_TARGET_XSAVE
-#endif
 static orc_bool ORC_TARGET_XSAVE check_xcr0_ymm()
 {
   return (_xgetbv(0) & 6U) != 0U;
 }
+#endif
 
 static void
 orc_x86_cpuid_handle_standard_flags (void)
@@ -345,15 +362,19 @@ orc_x86_cpuid_handle_standard_flags (void)
 
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1854795
   // https://gitlab.freedesktop.org/gstreamer/orc/-/issues/65
-  const int osxsave_enabled = ecx & (1 << 27);
+  orc_bool osxsave_enabled = (ecx & (1 << 27)) != 0;
   const int avx_instructions_supported = ecx & (1 << 28);
-
 
   get_cpuid (0x00000007, &eax, &ebx, &ecx, &edx);
 
   const int avx2_instructions_supported = ebx & (1 << 5);
 
-  if (check_xcr0_ymm() && osxsave_enabled) {
+  // If xgetbv is available, validate YMM state available
+  if (osxsave_enabled) {
+    osxsave_enabled = check_xcr0_ymm();
+  }
+
+  if (osxsave_enabled) {
     if (avx_instructions_supported) {
       orc_x86_sse_flags |= ORC_TARGET_AVX_AVX;
     }

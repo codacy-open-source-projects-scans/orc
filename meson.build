@@ -1,4 +1,4 @@
-project ('orc', 'c', version : '0.4.38.1',
+project ('orc', 'c', version : '0.4.39.1',
                      meson_version : '>= 0.55.0',
                      default_options : ['buildtype=debugoptimized',
                                         'warning_level=1'] )
@@ -136,6 +136,7 @@ int main() {
 '''
 cdata.set('HAVE_MONOTONIC_CLOCK', cc.compiles(monotonic_test))
 cdata.set('HAVE_GETTIMEOFDAY', cc.has_function('gettimeofday'))
+cdata.set('HAVE_VASPRINTF', cc.has_function('vasprintf'))
 cdata.set('HAVE_POSIX_MEMALIGN', cc.has_function('posix_memalign', prefix : '#include <stdlib.h>'))
 cdata.set('HAVE_MMAP', cc.has_function('mmap'))
 cdata.set('HAVE_SYS_TIME_H', cc.has_header('sys/time.h'))

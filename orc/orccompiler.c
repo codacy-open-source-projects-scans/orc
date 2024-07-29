@@ -1485,12 +1485,19 @@ static void
 orc_compiler_error_valist (OrcCompiler *compiler, const char *fmt,
     va_list args)
 {
-  char *s;
+  char *s = NULL;
 
   if (compiler->error_msg) return;
 
+#ifdef HAVE_VASPRINTF
+  vasprintf (&s, fmt, args);
+#elif defined(_UCRT)
   s = malloc (ORC_COMPILER_ERROR_BUFFER_SIZE);
-  vsprintf (s, fmt, args);
+  vsnprintf_s (s, ORC_COMPILER_ERROR_BUFFER_SIZE, _TRUNCATE, fmt, args);
+#else
+  s = malloc (ORC_COMPILER_ERROR_BUFFER_SIZE);
+  vsnprintf (s, ORC_COMPILER_ERROR_BUFFER_SIZE, fmt, args);
+#endif
   compiler->error_msg = s;
   compiler->error = TRUE;
   compiler->result = ORC_COMPILE_RESULT_UNKNOWN_COMPILE;
