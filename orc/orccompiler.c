@@ -576,6 +576,13 @@ orc_compiler_compile_program (OrcCompiler *compiler, OrcProgram *program, OrcTar
 #endif
 
   orc_code_allocate_codemem (program->orccode, program->orccode->code_size);
+  if (program->orccode->chunk == NULL) {
+    program->code_exec = (void *)orc_executor_emulate;
+    program->orccode->exec = (void *)orc_executor_emulate;
+    orc_compiler_error (compiler, "Cannot reserve executable memory, using emulation");
+    compiler->result = ORC_COMPILE_RESULT_UNKNOWN_COMPILE;
+    goto error;
+  }
 
 #if defined(__APPLE__) && (!defined(TARGET_OS_OSX) || TARGET_OS_OSX)
 #if defined(MAC_OS_VERSION_11_0) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_11_0
@@ -1490,7 +1497,8 @@ orc_compiler_error_valist (OrcCompiler *compiler, const char *fmt,
   if (compiler->error_msg) return;
 
 #ifdef HAVE_VASPRINTF
-  vasprintf (&s, fmt, args);
+  if (vasprintf (&s, fmt, args) < 0)
+    ORC_ASSERT (0);
 #elif defined(_UCRT)
   s = malloc (ORC_COMPILER_ERROR_BUFFER_SIZE);
   vsnprintf_s (s, ORC_COMPILER_ERROR_BUFFER_SIZE, _TRUNCATE, fmt, args);

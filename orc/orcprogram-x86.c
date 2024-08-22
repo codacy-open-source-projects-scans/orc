@@ -10,6 +10,10 @@
 #include <orc/orcx86-private.h>
 #include <orc/orcinternal.h>
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 #define ORC_X86_ALIGNED_DEST_CUTOFF 64
 #define LABEL_REGION1_SKIP 1
 #define LABEL_INNER_LOOP_START 2
@@ -27,7 +31,7 @@ orc_x86_validate_registers (OrcX86Target *t, OrcCompiler *c)
   t->validate_registers (c->valid_regs, c->is_64bit);
 }
 
-#ifdef HAVE_OS_WIN32
+#if defined(_WIN32) || defined(__CYGWIN__)
 static void
 orc_x86_saveable_registers (OrcX86Target *t, OrcCompiler *c)
 {
@@ -95,7 +99,7 @@ orc_x86_compiler_init (OrcCompiler *c)
     c->save_regs[X86_R13] = 1;
     c->save_regs[X86_R14] = 1;
     c->save_regs[X86_R15] = 1;
-#ifdef HAVE_OS_WIN32
+#if defined(_WIN32) || defined(__CYGWIN__)
     c->save_regs[X86_EDI] = 1;
     c->save_regs[X86_ESI] = 1;
     // When present, the upper portions of YMM0-YMM15 and ZMM0-ZMM15 are also
@@ -123,7 +127,7 @@ orc_x86_compiler_init (OrcCompiler *c)
   }
 
   if (c->is_64bit) {
-#ifdef HAVE_OS_WIN32
+#if defined(_WIN32) || defined(__CYGWIN__)
     c->exec_reg = X86_ECX;
     c->gp_tmpreg = X86_EDX;
 #else
@@ -440,6 +444,20 @@ orc_x86_get_shift (OrcX86Target *t, int size)
   /* FIXME missing the get_shift code generalization, the SSE 
    * case can handle until 8, but AVX until 32? */
   return t->get_shift(size);
+}
+
+static inline orc_bool
+has_valid_alignment (const OrcVariable *var)
+{
+  return (var->alignment % var->size) == 0;
+}
+
+static inline orc_bool
+can_be_validly_aligned (const OrcVariable *var, const OrcX86Target *t)
+{
+  const orc_bool alignment_matches_register =
+      (var->alignment % t->register_size) == 0;
+  return alignment_matches_register && has_valid_alignment (var);
 }
 
 static void
@@ -795,7 +813,7 @@ orc_x86_adjust_alignment (OrcX86Target *t, OrcCompiler *compiler)
   for (i = ORC_VAR_D1; i <= ORC_VAR_S8; i++) {
     if (compiler->vars[i].size == 0)
       continue;
-    if ((compiler->vars[i].alignment % t->register_size) == 0) {
+    if (can_be_validly_aligned (&compiler->vars[i], t)) {
       compiler->vars[i].is_aligned = TRUE;
     } else {
       compiler->vars[i].is_aligned = FALSE;
@@ -950,7 +968,8 @@ orc_x86_compile (OrcCompiler *compiler)
       }
 
       compiler->loop_shift = save_loop_shift;
-      compiler->vars[align_var].is_aligned = TRUE;
+      /* Consider as aligned only if the alignment allows so */
+      compiler->vars[align_var].is_aligned = has_valid_alignment (&compiler->vars[align_var]);
     }
 
     orc_x86_emit_label (compiler, LABEL_REGION1_SKIP);
@@ -1036,6 +1055,30 @@ orc_x86_compile (OrcCompiler *compiler)
   orc_x86_do_fixups (compiler);
 }
 
+static void
+orc_x86_flush_cache (OrcCode *code)
+{
+#if defined(__APPLE__)
+  sys_dcache_flush(code->code, code->code_size);
+  sys_icache_invalidate(code->exec, code->code_size);
+#elif defined (_WIN32)
+  HANDLE h_proc = GetCurrentProcess();
+
+  FlushInstructionCache(h_proc, code->code, code->code_size);
+
+  if ((void *) code->exec != (void *) code->code)
+    FlushInstructionCache(h_proc, code->exec, code->code_size);
+#elif __has_builtin(__builtin_clear_cache)
+  __builtin_clear_cache (code->code, code->code + code->code_size);
+  if ((void *) code->exec != (void *) code->code)
+    __builtin_clear_cache (code->exec, code->exec + code->code_size);
+#else
+  __clear_cache (code->code, code->code + code->code_size);
+  if ((void *) code->exec != (void *) code->code)
+    __clear_cache (code->exec, code->exec + code->code_size);
+#endif
+}
+
 void
 orc_x86_register_extension (OrcTarget *t, OrcX86Target *x86t)
 {
@@ -1054,6 +1097,7 @@ orc_x86_register_extension (OrcTarget *t, OrcX86Target *x86t)
   t->load_constant = orc_x86_load_constant;
   t->get_flag_name = x86t->get_flag_name;
   t->load_constant_long = x86t->load_constant_long;
+  t->flush_cache = orc_x86_flush_cache;
   t->target_data = x86t;
   orc_target_register (t);
 }

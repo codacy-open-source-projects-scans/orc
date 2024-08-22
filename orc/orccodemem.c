@@ -15,7 +15,6 @@
 
 #ifdef HAVE_CODEMEM_MMAP
 #include <sys/mman.h>
-#include <sys/errno.h>
 #endif
 
 #ifdef HAVE_CODEMEM_VIRTUALALLOC
@@ -187,7 +186,7 @@ orc_code_allocate_codemem (OrcCode *code, int size)
   OrcCodeRegion *region;
   OrcCodeChunk *chunk;
   int aligned_size =
-      (size + _orc_codemem_alignment) & (~_orc_codemem_alignment);
+      (MAX(1, size) + _orc_codemem_alignment) & (~_orc_codemem_alignment);
 
   orc_global_mutex_lock ();
   chunk = orc_code_region_get_free_chunk (aligned_size);
@@ -195,8 +194,7 @@ orc_code_allocate_codemem (OrcCode *code, int size)
     orc_global_mutex_unlock ();
 
     ORC_ERROR ("Failed to get free chunk memory");
-    /* TODO: error out more gracefully? */
-    ORC_ASSERT (0);
+    return;
   }
 
   region = chunk->region;
@@ -367,10 +365,18 @@ orc_code_region_allocate_codemem (OrcCodeRegion *region)
   /* On UWP, we can't allocate memory as executable from the start. We can only
    * set that later after compiling and copying the code over. This is a good
    * idea in general to avoid security issues, so we do it on win32 too. */
-  void *write_ptr;
+  void *write_ptr = NULL;
+  char *msg = NULL;
   write_ptr = _virtualalloc (NULL, SIZE, MEM_COMMIT, PAGE_READWRITE);
-  if (!write_ptr)
+  if (!write_ptr) {
+    FormatMessageA (FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+        NULL, GetLastError(), 0, (LPTSTR)&msg, 0, NULL);
+    ORC_ERROR ("Couldn't allocate mapping on %p of size %d: %s", region,
+        SIZE, msg);
+    LocalFree (msg);
     return FALSE;
+  }
 
   region->write_ptr = write_ptr;
   region->exec_ptr = region->write_ptr;
