@@ -35,6 +35,7 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +46,21 @@
  * @title: Utility functions
  * @short_description: Orc utility functions
  */
+
+void *
+orc_malloc(size_t size)
+{
+  void *ret;
+
+  ret = malloc(size);
+
+  if (ret == NULL) {
+    ORC_ERROR ("orc_malloc(%zu): %s", size, strerror(errno));
+    ORC_ASSERT (0);
+  }
+
+  return ret;
+}
 
 #if defined(__arm__) || defined(__aarch64__) || defined(__mips__)
 char *
@@ -81,11 +97,25 @@ char *
 _strndup (const char *s, int n)
 {
   char *r;
-  r = malloc (n+1);
+  r = orc_malloc (n+1);
   memcpy(r,s,n);
   r[n]=0;
 
   return r;
+}
+
+void *
+orc_realloc(void *ptr, size_t size)
+{
+  void *ret;
+
+  ret = realloc(ptr, size);
+  if (ret == NULL) {
+    ORC_ERROR ("orc_realloc(%p, %zu): %s", ptr, size, strerror(errno));
+    ORC_ASSERT (0);
+  }
+
+  return ret;
 }
 
 char **
@@ -97,14 +127,14 @@ strsplit (const char *s, char delimiter)
 
   while (*s == ' ') s++;
 
-  list = malloc (1 * sizeof(char *));
+  list = orc_malloc (1 * sizeof(char *));
   while (*s) {
     tok = s;
     while (*s && *s != delimiter) s++;
 
     list[n] = _strndup (tok, s - tok);
     while (*s && *s == delimiter) s++;
-    list = realloc (list, (n + 2) * sizeof(char *));
+    list = orc_realloc (list, (n + 2) * sizeof(char *));
     n++;
   }
 
@@ -225,7 +255,7 @@ void
 orc_vector_extend (OrcVector *vector)
 {
   vector->n_items_alloc += ORC_VECTOR_ITEM_CHUNK;
-  vector->items = realloc (vector->items, sizeof(void *) * vector->n_items_alloc);
+  vector->items = orc_realloc (vector->items, sizeof(void *) * vector->n_items_alloc);
 }
 
 void

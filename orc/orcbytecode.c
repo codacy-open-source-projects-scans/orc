@@ -5,6 +5,7 @@
 
 #include <orc/orc.h>
 #include <orc/orcbytecode.h>
+#include <orc/orcutils-private.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,11 +23,11 @@ orc_bytecode_new (void)
 {
   OrcBytecode *bytecode;
 
-  bytecode = malloc (sizeof(OrcBytecode));
+  bytecode = orc_malloc (sizeof(OrcBytecode));
   memset (bytecode, 0, sizeof(OrcBytecode));
 
   bytecode->alloc_len = 256;
-  bytecode->bytecode = malloc(bytecode->alloc_len);
+  bytecode->bytecode = orc_malloc(bytecode->alloc_len);
 
   return bytecode;
 }
@@ -188,7 +189,7 @@ bytecode_append_byte (OrcBytecode *bytecode, int byte)
 {
   if (bytecode->length >= bytecode->alloc_len) {
     bytecode->alloc_len += 256;
-    bytecode->bytecode = realloc (bytecode->bytecode, bytecode->alloc_len);
+    bytecode->bytecode = orc_realloc (bytecode->bytecode, bytecode->alloc_len);
   }
   bytecode->bytecode[bytecode->length] = byte;
   bytecode->length++;
@@ -335,7 +336,7 @@ orc_bytecode_parse_get_string (OrcBytecodeParse *parse)
   char *s;
 
   len = orc_bytecode_parse_get_int (parse);
-  s = malloc (len + 1);
+  s = orc_malloc (len + 1);
   for(i=0;i<len;i++){
     s[i] = orc_bytecode_parse_get_byte (parse);
   }
