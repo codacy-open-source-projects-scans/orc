@@ -1,4 +1,4 @@
-project ('orc', 'c', version : '0.4.39.1',
+project ('orc', 'c', version : '0.4.40.1',
                      meson_version : '>= 0.55.0',
                      default_options : ['buildtype=debugoptimized',
                                         'warning_level=1'] )
@@ -122,6 +122,11 @@ else
   # If it is not windows, we just assume it is a unix of sorts for now.
   cdata.set('HAVE_CODEMEM_MMAP', true)
   cdata.set('HAVE_THREAD_PTHREAD', true)
+endif
+
+if cpu_family.startswith('x86') and cc.get_define('_MSC_VER') == ''
+  xgetbv = cc.has_header_symbol('immintrin.h', '_xgetbv') or cc.has_header_symbol('xsaveintrin.h', '_xgetbv')
+  cdata.set('ORC_NEEDS_ASM_XSAVE', not xgetbv)
 endif
 
 monotonic_test = '''
