@@ -32,21 +32,9 @@ libtool
 ltmain.sh
 autom4te.cache
 
-/doc/orc-decl-list.txt
-/doc/orc-decl.txt
-/doc/orc-undeclared.txt
-/doc/orc-undocumented.txt
-/doc/orc-unused.txt
-/doc/orc.args
-/doc/orc.hierarchy
-/doc/orc.interfaces
-/doc/orc.prerequisites
-/doc/orc.signals
-/doc/version.entities
 /doc/*.stamp
 /doc/html/
 /doc/tmpl/
-/doc/xml/
 
 /examples/example1
 /examples/example1orc.c
@@ -87,8 +75,6 @@ autom4te.cache
 /testsuite/exec_opcodes_sys
 /testsuite/exec_parse
 /testsuite/generate_opcodes_sys
-/testsuite/generate_xml_table
-/testsuite/generate_xml_table2
 /testsuite/memcpy_speed
 /testsuite/perf_opcodes_sys
 /testsuite/perf_parse

@@ -24,10 +24,21 @@ tools_variables = [
   'orcc=' + ('${toolsdir}' / orcc_filename),
 ]
 
-noinst_bins = ['generate_xml_table', 'generate_xml_table2', 'generate-bytecode', 'generate-emulation']
+noinst_bins = ['generate-bytecode', 'generate-emulation']
 foreach bin : noinst_bins
-  b = executable(bin, bin + '.c',
-                 gnu_symbol_visibility: 'inlineshidden',
-                 install: false,
-                 dependencies: [libm, orc_dep, orc_test_dep])
+  executable(bin, bin + '.c',
+             gnu_symbol_visibility: 'inlineshidden',
+             install: false,
+             dependencies: [libm, orc_dep, orc_test_dep])
 endforeach
+
+# These are used in doc generation, so we need to keep references to them
+generate_md_coverage_table = executable('generate_md_coverage_table', 'generate_md_coverage_table.c',
+                                        gnu_symbol_visibility: 'inlineshidden',
+                                        install: false,
+                                        dependencies: [libm, orc_dep, orc_test_dep])
+
+generate_md_opcodes_table = executable('generate_md_opcodes_table', 'generate_md_opcodes_table.c',
+                                       gnu_symbol_visibility: 'inlineshidden',
+                                       install: false,
+                                       dependencies: [libm, orc_dep, orc_test_dep])

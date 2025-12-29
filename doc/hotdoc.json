@@ -1,0 +1,30 @@
+{
+  "project_name": "Orc",
+  "project_version": "0.4",
+  "sitemap": "sitemap.txt",
+  "index": "index.md",
+  "c_sources": [
+    "../orc/*.c",
+    "../orc/*.h",
+    "../orc/riscv/*.h",
+    "../orc/loongarch/*.h"
+  ],
+  "c_include_directories": [
+    "../orc",
+    "../"
+  ],
+  "extra_assets": [
+    "assets"
+  ],
+  "output": "built_doc",
+  "html_extra_theme": "https://github.com/hotdoc/hotdoc_bootstrap_theme/releases/download/0.8.100/hotdoc_bootstrap_theme.tar.xz?sha256=b1e1c3158b156913c9ca21b90054c0caf8af5f212133a6663ada3cb2a1cbcdfe",
+  "git_upload_repository": "git@github.com:orc/orc.git",
+  "edit_on_github_repository": "https://github.com/orc/orc",
+  "syntax_highlighting_activate": true,
+  "c_smart_index": true,
+  "c_index_columns": 3,
+  "include_paths": [
+    "."
+  ],
+  "fatal_warnings": false
+}

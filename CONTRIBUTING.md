@@ -116,7 +116,5 @@ generate the emulation code by calling
 This will generate the emulation code needed in case the target platform does not support the
 corresponding opcode. You need at least one target implementation of the new opcode in order to get accepted
 
-Finally, to update the documentation, you first need to add the corresponding opcode at
-`tools/generate_xml_table2.c` and generate it by calling
-`$build_dir/tools/generate_xml_table2 > doc/opcode_table.xml` and update the target support table
-by generating the table with `$build_dir/tools/generate_xml_table > doc/table.xml` 
+Finally, to update the documentation, rebuild the documentation with `ninja doc/opcodes.md`. This will automatically
+regenerate the opcode table and rule coverage table using the markdown table generators in the tools directory.

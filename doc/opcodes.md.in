@@ -1,0 +1,27 @@
+# Orc Opcodes
+
+Opcodes only work with variables of a particular size. In the table below, destination and source indicate the size of the destination and source operands, in bytes. In general, opcodes have a suffix indicating the sizes, "b" for 1-byte operations, "w" for 2-byte operations, and "l" for 4-byte operations. If the source and destination have different sizes, the source size suffix is listed first, then the destination suffix. For example, converting a 1-byte variable to 2-byte can be performed using the "convsbw" opcode.
+
+Signed, unsigned, and saturating operations are indicated by the letters "s", "u", and "s". If signed or unsigned is not indicated, it generally means that the signedness is not relevant to the definition of the opcode, and that the operation on signed or unsigned values will give the same result.
+
+The "select" opcodes divide the bits in the source value into two halves. For "select0", the half that is first in memory order is selected, and the latter half for "select1". In other words, "convwb" is the same as "select0wb" on little-endian systems, and "select1wb" on big-endian systems.
+
+The "merge" opcodes take two values and put them together in memory order.
+
+Accumulating opcodes require an accumulator variable as the destination. Accumulating opcodes start with "acc". These opcodes sum the source values over the entire array, and can be read from the OrcExecutor structure after an execution of an Orc program.
+
+Shift opcodes only work with constants or parameters as the second source value.
+
+For more precise understanding of operations, it is recommended to compile a program for the C target and examine the resulting C source code.
+
+## Table of Opcodes
+
+@OPCODE_TABLE@
+
+In the pseudo code of the above table, `abs()` indicates absolute value, `clamp()` indicates that any values outside the destination range are set to the nearest value in the destination range, and `sign()` evaluates to -1 for values less than 0, 1 for values greater than 0, and 0 for 0.
+
+## Rule Coverage
+
+The values for shift operations are not correct in this table.
+
+@RULE_COVERAGE_TABLE@

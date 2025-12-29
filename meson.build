@@ -228,19 +228,23 @@ endif
 
 have_docs = false
 if build_machine.system() == 'windows'
-  message('Disabling gtk-doc while building on Windows')
-  gtk_doc_disabled_reason = 'disabled on windows'
+  message('Disabling hotdoc while building on Windows')
+  hotdoc_disabled_reason = 'disabled on windows'
 else
-  if find_program('gtkdoc-scan', required : get_option('gtk_doc')).found()
-    subdir('doc')
-    have_docs = true
-    gtk_doc_disabled_reason = ''
-  elif get_option('gtk_doc').disabled()
+  hotdoc_req = get_option('hotdoc')
+  if hotdoc_req.disabled()
     message('Not building documentation (disabled)')
-    gtk_doc_disabled_reason = 'disabled'
+    hotdoc_disabled_reason = 'disabled'
   else
-    message('Not building documentation as gtk-doc was not found')
-    gtk_doc_disabled_reason = 'gtk-doc not found'
+    hotdoc_prog = find_program('hotdoc', required: hotdoc_req)
+    if hotdoc_prog.found()
+      subdir('doc')
+      have_docs = true
+      hotdoc_disabled_reason = ''
+    else
+      message('Not building documentation as hotdoc was not found')
+      hotdoc_disabled_reason = 'hotdoc not found'
+    endif
   endif
 endif
 
@@ -268,7 +272,7 @@ summary({
   }, section: 'Targets', bool_yn: true)
 
 if not have_docs
-  doc_summary = [have_docs, gtk_doc_disabled_reason]
+  doc_summary = [have_docs, hotdoc_disabled_reason]
 else
   doc_summary = have_docs
 endif

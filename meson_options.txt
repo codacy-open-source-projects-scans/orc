@@ -7,6 +7,6 @@ option('orc-test', type : 'feature', value : 'auto', description : 'Build the or
 # Common feature options
 option('benchmarks', type : 'feature', value : 'auto', yield : true)
 option('examples', type : 'feature', value : 'auto', yield : true)
-option('gtk_doc', type : 'feature', value : 'auto', yield : true, description : 'Generate API documentation with gtk-doc')
+option('hotdoc', type : 'feature', value : 'auto', yield : true, description : 'Generate API documentation with hotdoc')
 option('tests', type : 'feature', value : 'auto', yield : true)
 option('tools', type : 'feature', value : 'enabled', yield : true)
