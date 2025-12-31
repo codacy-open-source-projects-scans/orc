@@ -1,0 +1,114 @@
+#ifndef ORC_SSE_PRIVATE_H
+#define ORC_SSE_PRIVATE_H
+
+#include <orc/orcmmx-private.h>
+
+ORC_BEGIN_DECLS
+
+/* orcsseinsn.c */
+
+/* This extends OrcMMXInsnOperandFlag */
+typedef enum _OrcSSEInsnOperandFlag {
+  /* Size embedded on the type of register */
+  ORC_SSE_INSN_OPERAND_OP1_XMM = (1 << (ORC_MMX_INSN_OPERAND_FLAG_LAST + 1)), 
+  ORC_SSE_INSN_OPERAND_OP2_XMM = (1 << (ORC_MMX_INSN_OPERAND_FLAG_LAST + 2))
+} OrcSSEInsnOperandFlag;
+
+#define ORC_SSE_INSN_OPERAND_FLAG_LAST (ORC_MMX_INSN_OPERAND_FLAG_LAST + 2)
+
+#define ORC_SSE_INSN_TYPE_MEM_SSE (\
+  ORC_X86_INSN_OPERAND_OP1_MEM     \
+), ORC_SSE_INSN_OPERAND_OP2_XMM
+
+#define ORC_SSE_INSN_TYPE_SSE_REG32_IMM8 (\
+  ORC_X86_INSN_OPERAND_REG_REGM_IMM |     \
+  ORC_X86_INSN_OPERAND_OP2_32 |           \
+  ORC_X86_INSN_OPERAND_OP3_8              \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+#define ORC_SSE_INSN_TYPE_SSE_IMM8 (\
+  ORC_X86_INSN_OPERAND_REG_IMM |    \
+  ORC_X86_INSN_OPERAND_OP3_8        \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+/* For CMPPS example xmm1, xmm2/m128, imm8 */
+#define ORC_SSE_INSN_TYPE_SSE_SSEM_IMM8 (\
+  ORC_X86_INSN_OPERAND_REG_REGM_IMM |    \
+  ORC_X86_INSN_OPERAND_OP3_8             \
+), (                                     \
+  ORC_SSE_INSN_OPERAND_OP1_XMM |         \
+  ORC_SSE_INSN_OPERAND_OP2_XMM           \
+)
+
+#define ORC_SSE_INSN_TYPE_SSE_SSEM (\
+  ORC_X86_INSN_OPERAND_REG_REGM     \
+), (                                \
+  ORC_SSE_INSN_OPERAND_OP1_XMM |    \
+  ORC_SSE_INSN_OPERAND_OP2_XMM      \
+)
+
+#define ORC_SSE_INSN_TYPE_SSE_REGM32 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |     \
+  ORC_X86_INSN_OPERAND_OP2_32         \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+#define ORC_SSE_INSN_TYPE_REGM32_SSE (\
+  ORC_X86_INSN_OPERAND_REGM_REG |     \
+  ORC_X86_INSN_OPERAND_OP1_32         \
+), ORC_SSE_INSN_OPERAND_OP2_XMM
+
+#define ORC_SSE_INSN_TYPE_REG32TO64_SSE_IMM8 (\
+  ORC_X86_INSN_OPERAND_REG_REG_IMM |          \
+  ORC_X86_INSN_OPERAND_OP1_32 |               \
+  ORC_X86_INSN_OPERAND_OP1_64 |               \
+  ORC_X86_INSN_OPERAND_OP3_8                  \
+), ORC_SSE_INSN_OPERAND_OP2_XMM
+
+#define ORC_SSE_INSN_TYPE_REGM32TO64_SSE_IMM8 (\
+  ORC_X86_INSN_OPERAND_REGM_REG_IMM |          \
+  ORC_X86_INSN_OPERAND_OP1_32 |                \
+  ORC_X86_INSN_OPERAND_OP1_64 |                \
+  ORC_X86_INSN_OPERAND_OP3_8                   \
+), ORC_SSE_INSN_OPERAND_OP2_XMM
+
+#define ORC_SSE_INSN_TYPE_SSEM_SSE (\
+  ORC_X86_INSN_OPERAND_REGM_REG     \
+), (                                \
+  ORC_SSE_INSN_OPERAND_OP1_XMM |    \
+  ORC_SSE_INSN_OPERAND_OP2_XMM      \
+)
+
+#define ORC_SSE_INSN_TYPE_SSE_REG32M_IMM8 (\
+  ORC_X86_INSN_OPERAND_REG_REGM_IMM |        \
+  ORC_X86_INSN_OPERAND_OP2_32 |              \
+  ORC_X86_INSN_OPERAND_OP3_8                 \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+#define ORC_SSE_INSN_TYPE_SSE_REGM64 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |     \
+  ORC_X86_INSN_OPERAND_OP2_64         \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+#define ORC_SSE_INSN_TYPE_SSE_REGM (\
+  ORC_X86_INSN_OPERAND_REG_REGM |   \
+  ORC_X86_INSN_OPERAND_OP2_32 |     \
+  ORC_X86_INSN_OPERAND_OP2_64       \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+#define ORC_SSE_INSN_TYPE_SSE_REGM64 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |     \
+  ORC_X86_INSN_OPERAND_OP2_64         \
+), ORC_SSE_INSN_OPERAND_OP1_XMM
+
+#define ORC_SSE_INSN_TYPE_REGM64_SSE (\
+  ORC_X86_INSN_OPERAND_REGM_REG |     \
+  ORC_X86_INSN_OPERAND_OP1_64         \
+), ORC_SSE_INSN_OPERAND_OP2_XMM
+
+ORC_INTERNAL orc_bool orc_sse_insn_validate_operand1_sse (int reg, unsigned int sse_operands);
+ORC_INTERNAL orc_bool orc_sse_insn_validate_operand2_sse (int reg, unsigned int sse_operands);
+ORC_INTERNAL orc_bool orc_sse_insn_validate_reg (int reg);
+
+ORC_END_DECLS
+
+#endif

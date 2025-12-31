@@ -2121,8 +2121,6 @@ avx_rule_splitwb (OrcCompiler *p, void *user, OrcInstruction *insn)
   const int size = p->vars[insn->src_args[0]].size << p->loop_shift;
 
   /* values of dest are shifted away so don't matter */
-
-  ORC_DEBUG ("got tmp %d", tmp);
   /* FIXME slow */
   if (size >= 32) {
     orc_avx_emit_psraw_imm (p, 8, src, dest1);

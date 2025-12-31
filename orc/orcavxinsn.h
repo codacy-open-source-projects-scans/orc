@@ -7,16 +7,6 @@ ORC_BEGIN_DECLS
 
 #ifdef ORC_ENABLE_UNSTABLE_API
 
-/* This extends OrcSSEInsnOperandFlag */
-typedef enum _OrcAVXInsnOperandFlag {
-  ORC_AVX_INSN_OPERAND_OP1_YMM = (1 << (ORC_SSE_INSN_OPERAND_FLAG_LAST + 1)), 
-  ORC_AVX_INSN_OPERAND_OP2_YMM = (1 << (ORC_SSE_INSN_OPERAND_FLAG_LAST + 2)),
-  ORC_AVX_INSN_OPERAND_OP3_YMM = (1 << (ORC_SSE_INSN_OPERAND_FLAG_LAST + 3)),
-  ORC_AVX_INSN_OPERAND_OP4_YMM = (1 << (ORC_SSE_INSN_OPERAND_FLAG_LAST + 4)),
-  ORC_AVX_INSN_OPERAND_OP3_XMM = (1 << (ORC_SSE_INSN_OPERAND_FLAG_LAST + 5)),
-  ORC_AVX_INSN_OPERAND_OP4_XMM = (1 << (ORC_SSE_INSN_OPERAND_FLAG_LAST + 6)),
-} OrcAVXInsnOperandFlag;
-
 /* We need to differentiate the SSE (VEX.128) from the AVX (VEX.256)
  * instructions because the type of the opcodes are not independent.
  * In SSE compatibility mode both operands must be XMM, but on AVX

@@ -465,7 +465,7 @@ orc_x86_emit_split_3_regions (OrcX86Target *t, OrcCompiler *compiler)
   align_shift = var_size_shift + compiler->loop_shift;
 
   /* determine how many iterations until align array is aligned (n1) */
-  orc_x86_emit_mov_imm_reg (compiler, 4, 32, X86_EAX);
+  orc_x86_emit_mov_imm_reg (compiler, 4, t->register_size, X86_EAX);
   // Get the address of the array in question
   // and eax <- eax - addressof(alignment variable)
   orc_x86_emit_sub_memoffset_reg (compiler, 4,

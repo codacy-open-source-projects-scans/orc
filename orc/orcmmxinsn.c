@@ -11,6 +11,7 @@
 #include <orc/orcx86insn.h>
 #include <orc/orcmmx.h>
 #include <orc/orcmmxinsn.h>
+#include <orc/orcmmx-private.h>
 
 /*
  * To review, checking https://en.wikipedia.org/wiki/X86_SIMD_instruction_listings

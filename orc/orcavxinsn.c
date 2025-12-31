@@ -7,149 +7,10 @@
 #include <orc/orcx86.h>
 #include <orc/orcx86-private.h>
 #include <orc/orcx86insn.h>
+#include <orc/orcsseinsn.h>
 #include <orc/orcavx.h>
 #include <orc/orcavxinsn.h>
-#include <orc/orcsseinsn.h>
-
-#define ORC_AVX_INSN_TYPE_AVX_AVXM (\
-  ORC_X86_INSN_OPERAND_REG_REGM     \
-), (                                \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |    \
-  ORC_AVX_INSN_OPERAND_OP2_YMM      \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_AVXM (\
-  ORC_X86_INSN_OPERAND_REG_REGM     \
-), (                                \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |    \
-  ORC_AVX_INSN_OPERAND_OP2_YMM      \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_AVXM_IMM8 (\
-  ORC_X86_INSN_OPERAND_REG_REGM_IMM |    \
-  ORC_X86_INSN_OPERAND_OP3_8             \
-), (                                     \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |         \
-  ORC_AVX_INSN_OPERAND_OP2_YMM           \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_AVX_IMM8 (\
-  ORC_X86_INSN_OPERAND_REG_REG_IMM |    \
-  ORC_X86_INSN_OPERAND_OP3_8            \
-), (                                    \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |        \
-  ORC_AVX_INSN_OPERAND_OP2_YMM          \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_AVX_AVXM (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM     \
-), (                                    \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |        \
-  ORC_AVX_INSN_OPERAND_OP2_YMM |        \
-  ORC_AVX_INSN_OPERAND_OP3_YMM          \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_AVX_SSEM (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM     \
-), (                                    \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |        \
-  ORC_AVX_INSN_OPERAND_OP2_YMM |        \
-  ORC_AVX_INSN_OPERAND_OP3_XMM          \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_SSE_SSEM (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM     \
-), (                                    \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |        \
-  ORC_SSE_INSN_OPERAND_OP2_XMM |        \
-  ORC_AVX_INSN_OPERAND_OP3_XMM          \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_SSE_IMM8 (\
-  ORC_X86_INSN_OPERAND_REG_REG_IMM |    \
-  ORC_X86_INSN_OPERAND_OP3_8            \
-), (                                    \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |        \
-  ORC_SSE_INSN_OPERAND_OP2_XMM          \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_SSE_REG32M16_IMM8 (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |        \
-  ORC_X86_INSN_OPERAND_OP3_16 |                  \
-  ORC_X86_INSN_OPERAND_OP3_32 |                  \
-  ORC_X86_INSN_OPERAND_OP4_8                     \
-), (                                             \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |                 \
-  ORC_SSE_INSN_OPERAND_OP2_XMM                   \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_AVX_AVXM_IMM8 (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |    \
-  ORC_X86_INSN_OPERAND_OP4_8                 \
-), (                                         \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |             \
-  ORC_AVX_INSN_OPERAND_OP2_YMM |             \
-  ORC_AVX_INSN_OPERAND_OP3_YMM               \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_AVX_AVXM_AVX (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM_REG     \
-), (                                        \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |            \
-  ORC_AVX_INSN_OPERAND_OP2_YMM |            \
-  ORC_AVX_INSN_OPERAND_OP3_YMM |            \
-  ORC_AVX_INSN_OPERAND_OP4_YMM              \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_SSE_SSEM_SSE (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM_REG     \
-), (                                        \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |            \
-  ORC_SSE_INSN_OPERAND_OP2_XMM |            \
-  ORC_AVX_INSN_OPERAND_OP3_XMM |            \
-  ORC_AVX_INSN_OPERAND_OP4_XMM              \
-)
-
-#define ORC_AVX_INSN_TYPE_AVX_SSEM (\
-  ORC_X86_INSN_OPERAND_REG_REGM     \
-), (                                \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |    \
-  ORC_SSE_INSN_OPERAND_OP2_XMM      \
-)
-
-#define ORC_AVX_INSN_TYPE_SSEM_AVX_IMM8 (\
-  ORC_X86_INSN_OPERAND_REGM_REG_IMM |    \
-  ORC_X86_INSN_OPERAND_OP3_8             \
-), (                                     \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |         \
-  ORC_AVX_INSN_OPERAND_OP2_YMM           \
-)
-
-#define ORC_AVX_INSN_TYPE_AVXM_AVX (\
-  ORC_X86_INSN_OPERAND_REGM_REG     \
-), (                                \
-  ORC_AVX_INSN_OPERAND_OP1_YMM |    \
-  ORC_AVX_INSN_OPERAND_OP2_YMM      \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_SSE_REGM32_IMM8  (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |       \
-  ORC_X86_INSN_OPERAND_OP3_32 |                 \
-  ORC_X86_INSN_OPERAND_OP4_8                    \
-), (                                            \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |                \
-  ORC_SSE_INSN_OPERAND_OP2_XMM                  \
-)
-
-#define ORC_AVX_INSN_TYPE_SSE_SSE_REGM32TO64_IMM8 (\
-  ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |          \
-  ORC_X86_INSN_OPERAND_OP3_32 |                    \
-  ORC_X86_INSN_OPERAND_OP3_64 |                    \
-  ORC_X86_INSN_OPERAND_OP4_8                       \
-), (                                               \
-  ORC_SSE_INSN_OPERAND_OP1_XMM |                   \
-  ORC_SSE_INSN_OPERAND_OP2_XMM                     \
-)
+#include <orc/orcavx-internal.h>
 
 typedef struct _OrcAVXInsnOp {
   char name[16];
@@ -267,7 +128,7 @@ static const OrcAVXInsnOp orc_avx_ops[] = {
   { "vmovd"       , 0, ORC_SSE_INSN_TYPE_REGM32_SSE             , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7e },
   { "vmovq"       , 0, ORC_SSE_INSN_TYPE_REGM64_SSE             , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7e }, // store
   { "vmovq"       , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0XF3, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7e },
-  { "vpinsrw"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REG32M16_IMM8  , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xc4 },
+  { "vpinsrw"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REG32M_IMM8    , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xc4 },
   { "vpextrw"     , 0, ORC_SSE_INSN_TYPE_REG32TO64_SSE_IMM8     , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xc5 },
   { "vpsrlw"      , 0, ORC_AVX_INSN_TYPE_SSE_SSE_SSEM           , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xd1 },
   { "vpsrld"      , 0, ORC_AVX_INSN_TYPE_SSE_SSE_SSEM           , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xd2 },
@@ -321,8 +182,8 @@ static const OrcAVXInsnOp orc_avx_ops[] = {
   /* 140 */
   { "vmovdqa"     , 0, ORC_SSE_INSN_TYPE_SSEM_SSE               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7f },
   { "vpslldq"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_IMM8           , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x73, 7 },
-  { "vmovntdq"    , 0, ORC_AVX_INSN_TYPE_AVXM_AVX               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xe7 },
-  { "vmovntdq"    , 0, ORC_SSE_INSN_TYPE_SSEM_SSE               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xe7 },
+  { "vmovntdq"    , 0, ORC_AVX_INSN_TYPE_MEM_AVX               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xe7 },
+  { "vmovntdq"    , 0, ORC_SSE_INSN_TYPE_MEM_SSE               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xe7 },
   { "vpshuflw"    , 0, ORC_SSE_INSN_TYPE_SSE_SSEM_IMM8          , ORC_X86_INSN_OPCODE_PREFIX_0XF2, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x70 },
   { "vmovdqu"     , 0, ORC_AVX_INSN_TYPE_AVX_AVXM               , ORC_X86_INSN_OPCODE_PREFIX_0XF3, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x6f },
   { "vmovdqu"     , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0XF3, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x6f },

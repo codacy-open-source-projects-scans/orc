@@ -7,14 +7,6 @@ ORC_BEGIN_DECLS
 
 #ifdef ORC_ENABLE_UNSTABLE_API
 
-typedef enum _OrcMMXInsnOperandFlag {
-  /* Size embedded on the type of register */
-  ORC_MMX_INSN_OPERAND_OP1_MM = (1 << 0),
-  ORC_MMX_INSN_OPERAND_OP2_MM = (1 << 1),
-} OrcMMXInsnOperandFlag;
-
-#define ORC_MMX_INSN_OPERAND_FLAG_LAST 1
-
 typedef enum _OrcMMXInsnIdx {
   ORC_MMX_punpcklbw,
   ORC_MMX_punpcklwd,

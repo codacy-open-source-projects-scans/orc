@@ -409,6 +409,7 @@ typedef enum _OrcX86OpcodeIdx {
   ORC_X86_ret,
   ORC_X86_retq,
   /* 70 */
+  ORC_X86_int3,
   ORC_X86_sar,
   ORC_X86_jmp,
   ORC_X86_test_imm,
