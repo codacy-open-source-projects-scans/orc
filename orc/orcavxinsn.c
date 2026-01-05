@@ -12,6 +12,32 @@
 #include <orc/orcavxinsn.h>
 #include <orc/orcavx-internal.h>
 
+#define ORC_AVX_INSN_VALIDATE_OPERAND_12(op, n, reg)                           \
+  if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP##n##_YMM) &&                 \
+      orc_avx_insn_validate_reg (reg)) {                                       \
+    return TRUE;                                                               \
+  } else if ((op->avx_operands & ORC_SSE_INSN_OPERAND_OP##n##_XMM) &&          \
+      orc_avx_insn_validate_sse_reg (reg)) {                                   \
+    return TRUE;                                                               \
+  } else {                                                                     \
+    ORC_ERROR ("Unsupported operand %d with reg %d for op %s", n, reg,         \
+        op->name);                                                             \
+    return FALSE;                                                              \
+  }
+
+#define ORC_AVX_INSN_VALIDATE_OPERAND_34(op, n, reg)                           \
+  if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP##n##_YMM) &&                 \
+      orc_avx_insn_validate_reg (reg)) {                                       \
+    return TRUE;                                                               \
+  } else if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP##n##_XMM) &&          \
+      orc_avx_insn_validate_sse_reg (reg)) {                                   \
+    return TRUE;                                                               \
+  } else {                                                                     \
+    ORC_ERROR ("Unsupported operand %d with reg %d for op %s", n, reg,         \
+        op->name);                                                             \
+    return FALSE;                                                              \
+  }
+
 typedef struct _OrcAVXInsnOp {
   char name[16];
   unsigned int target_flags;
@@ -128,7 +154,7 @@ static const OrcAVXInsnOp orc_avx_ops[] = {
   { "vmovd"       , 0, ORC_SSE_INSN_TYPE_REGM32_SSE             , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7e },
   { "vmovq"       , 0, ORC_SSE_INSN_TYPE_REGM64_SSE             , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7e }, // store
   { "vmovq"       , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0XF3, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0x7e },
-  { "vpinsrw"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REG32M_IMM8    , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xc4 },
+  { "vpinsrw"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REG32M16_IMM8  , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xc4 },
   { "vpextrw"     , 0, ORC_SSE_INSN_TYPE_REG32TO64_SSE_IMM8     , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xc5 },
   { "vpsrlw"      , 0, ORC_AVX_INSN_TYPE_SSE_SSE_SSEM           , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xd1 },
   { "vpsrld"      , 0, ORC_AVX_INSN_TYPE_SSE_SSE_SSEM           , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F, 0xd2 },
@@ -198,12 +224,12 @@ static const OrcAVXInsnOp orc_avx_ops[] = {
   { "vpabsb"      , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x1c },
   { "vpabsw"      , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x1d },
   { "vpabsd"      , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x1e },
-  { "vpextrb"     , 0, ORC_SSE_INSN_TYPE_REGM32TO64_SSE_IMM8    , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x14 },
-  { "vpextrw"     , 0, ORC_SSE_INSN_TYPE_REGM32TO64_SSE_IMM8    , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x15 },
-  { "vpinsrb"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REGM32_IMM8    , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x20 },
+  { "vpextrb"     , 0, ORC_SSE_INSN_TYPE_REG32TO64M8_SSE_IMM8   , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x14 },
+  { "vpextrw"     , 0, ORC_SSE_INSN_TYPE_REG32TO64M16_SSE_IMM8  , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x15 },
+  { "vpinsrb"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REG32M8_IMM8   , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x20 },
   /* 160 */
   { "vpmovsxbw"   , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x20 },
-  { "vpinsrd"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REGM32TO64_IMM8, ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x22 },
+  { "vpinsrd"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_REG32TO64M32_IMM8, ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F3A, 0x22 },
   { "vpmovsxwd"   , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x23 },
   { "vpmovsxdq"   , 0, ORC_SSE_INSN_TYPE_SSE_SSEM               , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x25 },
   { "vpmuldq"     , 0, ORC_AVX_INSN_TYPE_SSE_SSE_SSEM           , ORC_X86_INSN_OPCODE_PREFIX_0X66, ORC_X86_INSN_OPCODE_ESCAPE_SEQUENCE_0X0F38, 0x28 },
@@ -558,63 +584,12 @@ orc_avx_insn_validate_reg (int reg)
 }
 
 static orc_bool
-orc_avx_insn_validate_operand1_avx (int reg, unsigned int simd_operands)
+orc_avx_insn_validate_sse_reg (int reg)
 {
-  if (!reg)
+  if (reg >= X86_XMM0 && reg < X86_XMM0 + 16)
+    return TRUE;
+  else
     return FALSE;
-  else if (!(simd_operands & ORC_AVX_INSN_OPERAND_OP1_YMM))
-    return FALSE;
-  return orc_avx_insn_validate_reg (reg);
-}
-
-static orc_bool
-orc_avx_insn_validate_operand2_avx (int reg, unsigned int simd_operands)
-{
-  if (!reg)
-    return FALSE;
-  else if (!(simd_operands & ORC_AVX_INSN_OPERAND_OP2_YMM))
-    return FALSE;
-  return orc_avx_insn_validate_reg (reg);
-}
-
-static orc_bool
-orc_avx_insn_validate_operand3_avx (int reg, unsigned int simd_operands)
-{
-  if (!reg)
-    return FALSE;
-  else if (!(simd_operands & ORC_AVX_INSN_OPERAND_OP3_YMM))
-    return FALSE;
-  return orc_avx_insn_validate_reg (reg);
-}
-
-static orc_bool
-orc_avx_insn_validate_operand3_sse (int reg, unsigned int simd_operands)
-{
-  if (!reg)
-    return FALSE;
-  else if (!(simd_operands & ORC_AVX_INSN_OPERAND_OP3_XMM))
-    return FALSE;
-  return orc_sse_insn_validate_reg (reg);
-}
-
-static orc_bool
-orc_avx_insn_validate_operand4_avx (int reg, unsigned int simd_operands)
-{
-  if (!reg)
-    return FALSE;
-  else if (!(simd_operands & ORC_AVX_INSN_OPERAND_OP4_YMM))
-    return FALSE;
-  return orc_avx_insn_validate_reg (reg);
-}
-
-static orc_bool
-orc_avx_insn_validate_operand4_sse (int reg, unsigned int simd_operands)
-{
-  if (!reg)
-    return FALSE;
-  else if (!(simd_operands & ORC_AVX_INSN_OPERAND_OP4_XMM))
-    return FALSE;
-  return orc_sse_insn_validate_reg (reg);
 }
 
 static void
@@ -635,147 +610,48 @@ orc_avx_insn_from_opcode (OrcX86Insn *insn, int index, const OrcAVXInsnOp *op)
       ORC_AVX_INSN_OPERAND_OP4_YMM))
     insn->prefix = ORC_X86_INSN_PREFIX_VEX256;
   insn->extension = op->extension;
-  if (!orc_x86_insn_encoding_from_operands (&insn->encoding, op->operands, insn->prefix)) {
+  if (!orc_x86_insn_encoding_from_operands (&insn->encoding, op->operands,
+      op->extension, FALSE)) {
     ORC_ERROR ("Can not encode %s (%d) opcode", op->name, index);
   }
 }
 
-/* FIXME support the size */
 static orc_bool
-orc_avx_insn_validate_operands (const OrcAVXInsnOp *op, int index, const int dest,
-    const int src0, const int src1, const int src2)
+orc_avx_insn_validate_operand (OrcX86InsnOperandNum n, int reg, void *data)
 {
-  if (op->operands & ORC_X86_INSN_OPERAND_OP1_REG) {
-    if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP1_YMM) &&
-        !orc_avx_insn_validate_operand1_avx (dest, op->avx_operands)) {
-      ORC_ERROR ("Dest register %d not validated for op %s (%d)",
-          dest, op->name, index);
-    } else if ((op->avx_operands & ORC_SSE_INSN_OPERAND_OP1_XMM) &&
-        !orc_sse_insn_validate_operand1_sse (dest, op->avx_operands)) {
-      ORC_ERROR ("Dest register %d not validated for op %s (%d)",
-          dest, op->name, index);
-    }
-  }
-  if (op->operands & ORC_X86_INSN_OPERAND_OP2_REG) {
-    if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP2_YMM) &&
-        !orc_avx_insn_validate_operand2_avx (src0, op->avx_operands)) {
-      ORC_ERROR ("Src0 register %d not validated for op %s (%d)",
-          src0, op->name, index);
-    } else if ((op->avx_operands & ORC_SSE_INSN_OPERAND_OP2_XMM) &&
-        !orc_sse_insn_validate_operand2_sse (src0, op->avx_operands)) {
-      ORC_ERROR ("Src0 register %d not validated for op %s (%d)",
-          src0, op->name, index);
-    }
-  }
-
-  if (op->operands & ORC_X86_INSN_OPERAND_OP3_REG) {
-    if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP3_YMM) &&
-        !orc_avx_insn_validate_operand3_avx (src1, op->avx_operands)) {
-      ORC_ERROR ("Src1 register %d not validated for op %s (%d)",
-          src1, op->name, index);
-    } else if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP3_XMM) &&
-        !orc_avx_insn_validate_operand3_sse (src1, op->avx_operands)) {
-      ORC_ERROR ("Src1 register %d not validated for op %s (%d)",
-          src1, op->name, index);
-    }
-  }
-
-  if (op->operands & ORC_X86_INSN_OPERAND_OP4_REG) {
-    if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP4_YMM) &&
-        !orc_avx_insn_validate_operand4_avx (src2, op->avx_operands)) {
-      ORC_ERROR ("Src2 register %d not validated for op %s (%d)",
-          src2, op->name, index);
-    } else if ((op->avx_operands & ORC_AVX_INSN_OPERAND_OP4_XMM) &&
-        !orc_avx_insn_validate_operand4_sse (src2, op->avx_operands)) {
-      ORC_ERROR ("Src2 register %d not validated for op %s (%d)",
-          src2, op->name, index);
-    }
+  OrcAVXInsnOp *op = (OrcAVXInsnOp *)data;
+  switch (n) {
+    case ORC_X86_INSN_OPERAND_NUM_1:
+      ORC_AVX_INSN_VALIDATE_OPERAND_12 (op, 1, reg)
+      break;
+    case ORC_X86_INSN_OPERAND_NUM_2:
+      ORC_AVX_INSN_VALIDATE_OPERAND_12 (op, 2, reg)
+      break;
+    case ORC_X86_INSN_OPERAND_NUM_3:
+      ORC_AVX_INSN_VALIDATE_OPERAND_34 (op, 3, reg)
+    case ORC_X86_INSN_OPERAND_NUM_4:
+      ORC_AVX_INSN_VALIDATE_OPERAND_34 (op, 4, reg)
+    default:
+      ORC_ERROR ("Unsupported operand num %d", n);
+      return FALSE;
   }
   return TRUE;
 }
 
-static void
-orc_avx_insn_set_operands (const OrcAVXInsnOp *op, OrcX86Insn *xinsn,
-    OrcX86InsnOperandSize size, const int dest, const int src0,
-    const int src1, const int src2)
+static orc_bool
+orc_avx_insn_validate_operands (OrcCompiler *c, int index,
+    OrcX86InsnOperandSize size, const int dest, const int src0, const int src1,
+    const int src2, orc_int64 imm)
 {
-  OrcX86InsnOperandSize opsize;
+  const OrcAVXInsnOp *op = orc_avx_ops + index;
 
-  if (op->operands & ORC_X86_INSN_OPERAND_OP1_REG) {
-    opsize = ORC_X86_INSN_OPERAND_SIZE_NONE;
-    if (op->operands & ORC_X86_INSN_OPERAND_OP1_NON_SIMD)
-      opsize = size;
-    orc_x86_insn_operand_set (&xinsn->operands[0],
-        ORC_X86_INSN_OPERAND_TYPE_REG, opsize, dest);
+  if (!orc_x86_insn_validate_operands (c, op->operands, size, dest, src0, src1,
+    src2, imm, &orc_avx_insn_validate_operand, (void *)op)) {
+    ORC_ERROR ("Failed validating %s (%d)", op->name, index);
+    return FALSE;
   }
-  if (op->operands & ORC_X86_INSN_OPERAND_OP2_REG) {
-    opsize = ORC_X86_INSN_OPERAND_SIZE_NONE;
-    if (op->operands & ORC_X86_INSN_OPERAND_OP2_NON_SIMD)
-      opsize = size;
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        ORC_X86_INSN_OPERAND_TYPE_REG, opsize, src0);
-  }
-  if (op->operands & ORC_X86_INSN_OPERAND_OP3_REG) {
-    opsize = ORC_X86_INSN_OPERAND_SIZE_NONE;
-    if (op->operands & ORC_X86_INSN_OPERAND_OP3_NON_SIMD)
-      opsize = size;
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        ORC_X86_INSN_OPERAND_TYPE_REG, opsize, src1);
-  }
-  if (op->operands & ORC_X86_INSN_OPERAND_OP4_REG) {
-    opsize = ORC_X86_INSN_OPERAND_SIZE_NONE;
-    if (op->operands & ORC_X86_INSN_OPERAND_OP4_NON_SIMD)
-      opsize = size;
-    orc_x86_insn_operand_set (&xinsn->operands[3],
-        ORC_X86_INSN_OPERAND_TYPE_REG, opsize, src2);
-  }
-}
 
-/* FIXME move this to x86insn.c */
-/* FIXME we are assuming a size of 8 */
-static void
-orc_avx_insn_set_imm (OrcX86Insn *xinsn, unsigned int operands, int imm)
-{
-  if (operands & ORC_X86_INSN_OPERAND_OP1_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[0],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->imm = imm;
-  }
-  if (operands & ORC_X86_INSN_OPERAND_OP2_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->imm = imm;
-  }
-  if (operands & ORC_X86_INSN_OPERAND_OP3_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->imm = imm;
-  }
-  if (operands & ORC_X86_INSN_OPERAND_OP4_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[3],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->imm = imm;
-  }
-}
-
-/* FIXME move this to x86insn.c */
-static void
-orc_avx_insn_set_mem (OrcX86Insn *xinsn, OrcX86InsnOperandType type,
-    OrcX86InsnOperandSize size, unsigned int operands, const int dest,
-    const int src0, const int src1, const int src2)
-{
-  if (operands & ORC_X86_INSN_OPERAND_OP1_MEM)
-    orc_x86_insn_operand_set (&xinsn->operands[0],
-        type, size, dest);
-  if (operands & ORC_X86_INSN_OPERAND_OP2_MEM)
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        type, size, src0);
-  if (operands & ORC_X86_INSN_OPERAND_OP3_MEM)
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        type, size, src1);
-  if (operands & ORC_X86_INSN_OPERAND_OP4_MEM)
-    orc_x86_insn_operand_set (&xinsn->operands[3],
-        type, size, src2);
+  return TRUE;
 }
 
 void
@@ -801,14 +677,14 @@ orc_vex_emit_cpuinsn_avx (OrcCompiler *const p, const int index,
   const OrcAVXInsnOp *op = orc_avx_ops + index;
 
   /* checks */
-  if (!orc_avx_insn_validate_operands (op, index, dest, src0, src1,
-      src2))
+  if (!orc_avx_insn_validate_operands (p, index,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src0, src1, src2, 0))
     return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_avx_insn_from_opcode (xinsn, index, op);
-  orc_avx_insn_set_operands (op, xinsn, ORC_X86_INSN_OPERAND_SIZE_NONE, dest,
-      src0, src1, src2);
+  orc_x86_insn_set_operands (xinsn, op->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src0, src1, src2);
   /* Special case for cmpeqpd until cmpleps, all are REG_REG_REGM_IMM8 but faked on
    * the definition
    */
@@ -835,13 +711,13 @@ orc_vex_emit_cpuinsn_size (OrcCompiler *const p, const int index,
   const OrcAVXInsnOp *op = orc_avx_ops + index;
 
   /* checks */
-  if (!orc_avx_insn_validate_operands (op, index, dest, src0, src1,
-      src2))
+  if (!orc_avx_insn_validate_operands (p, index, size, dest, src0, src1,
+      src2, 0))
     return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_avx_insn_from_opcode (xinsn, index, op);
-  orc_avx_insn_set_operands (op, xinsn, opsize, dest, src0, src1, src2);
+  orc_x86_insn_set_operands (xinsn, op->operands, opsize, dest, src0, src1, src2);
 }
 
 /*
@@ -856,14 +732,15 @@ orc_vex_emit_cpuinsn_imm (OrcCompiler *const p, const int index, const int size,
   const OrcAVXInsnOp *op = orc_avx_ops + index;
   const OrcX86InsnOperandSize opsize = orc_x86_insn_size_to_operand_size (size);
 
-  if (!orc_avx_insn_validate_operands (op, index, dest, src0, src1,
-      0))
+  if (!orc_avx_insn_validate_operands (p, index, size, dest, src0, src1,
+      ORC_REG_INVALID, 0))
     return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_avx_insn_from_opcode (xinsn, index, op);
-  orc_avx_insn_set_operands (op, xinsn, opsize, dest, src0, src1, 0);
-  orc_avx_insn_set_imm (xinsn, op->operands, imm);
+  orc_x86_insn_set_operands (xinsn, op->operands, opsize, dest, src0, src1,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, op->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
 }
 
 /*
@@ -880,16 +757,22 @@ orc_vex_emit_cpuinsn_load_memoffset (OrcCompiler *const p, const int index,
 {
   OrcX86Insn *xinsn;
   const OrcAVXInsnOp *op = orc_avx_ops + index;
+  const OrcX86InsnOperandSize size = p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 :
+      ORC_X86_INSN_OPERAND_SIZE_32;
 
-  /* TODO missing checks */
+  /* checks */
+  if (!orc_avx_insn_validate_operands (p, index, size, dest, src0, src1,
+      ORC_REG_INVALID, 0))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_avx_insn_from_opcode (xinsn, index, op);
-  orc_avx_insn_set_operands (op, xinsn, ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src0, src1, 0);
-  orc_avx_insn_set_mem (xinsn, ORC_X86_INSN_OPERAND_TYPE_OFF,
-      p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32,
-      op->operands, dest, src0, src1, 0);
-  orc_avx_insn_set_imm (xinsn, op->operands, imm);
+  orc_x86_insn_set_operands (xinsn, op->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src0, src1, ORC_REG_INVALID);
+  orc_x86_insn_set_mem (xinsn, op->operands, size,
+      ORC_X86_INSN_OPERAND_TYPE_OFF, dest, src0, src1, 
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, op->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
   xinsn->offset = offset;
 }
 
@@ -907,16 +790,23 @@ orc_vex_emit_cpuinsn_store_memoffset (OrcCompiler *const p, const int index,
 {
   OrcX86Insn *xinsn;
   const OrcAVXInsnOp *op = orc_avx_ops + index;
+  const OrcX86InsnOperandSize size = p->is_64bit ?
+      ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32;
 
-  /* dest memory */
-  /* TODO missing checks */
+  /* checks */
+  if (!orc_avx_insn_validate_operands (p, index, size, dest, src,
+      ORC_REG_INVALID, ORC_REG_INVALID, 0))
+    return;
+
   xinsn = orc_x86_get_output_insn (p);
   orc_avx_insn_from_opcode (xinsn, index, op);
-  orc_avx_insn_set_operands (op, xinsn, ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src, 0, 0);
-  orc_avx_insn_set_mem (xinsn, ORC_X86_INSN_OPERAND_TYPE_OFF,
-      p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32,
-      op->operands, dest, src, 0, 0);
-  orc_avx_insn_set_imm (xinsn, op->operands, imm);
+  orc_x86_insn_set_operands (xinsn, op->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_mem (xinsn, op->operands, size,
+      ORC_X86_INSN_OPERAND_TYPE_OFF, dest, src, ORC_REG_INVALID, 
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, op->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
   xinsn->offset = offset;
 }
 
@@ -934,17 +824,23 @@ orc_vex_emit_cpuinsn_load_memindex (OrcCompiler *const p, const int index,
 {
   OrcX86Insn *xinsn;
   const OrcAVXInsnOp *op = orc_avx_ops + index;
+  const OrcX86InsnOperandSize size = p->is_64bit ?
+      ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32;
 
-  /* TODO missing checks */
-  /* TODO missing src_index check */
+  /* checks */
+  if (!orc_avx_insn_validate_operands (p, index, size, dest, src,
+      ORC_REG_INVALID, ORC_REG_INVALID, 0))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_avx_insn_from_opcode (xinsn, index, op);
-  orc_avx_insn_set_operands (op, xinsn, ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src, 0, 0);
-  orc_avx_insn_set_mem (xinsn, ORC_X86_INSN_OPERAND_TYPE_IDX,
-      p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32,
-      op->operands, dest, src, 0, 0);
-  orc_avx_insn_set_imm (xinsn, op->operands, imm);
+  orc_x86_insn_set_operands (xinsn, op->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_mem (xinsn, op->operands, size,
+      ORC_X86_INSN_OPERAND_TYPE_IDX, dest, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, op->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
   xinsn->offset = offset;
   xinsn->index_reg = src_index;
   xinsn->shift = shift;

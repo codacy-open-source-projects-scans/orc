@@ -94,10 +94,11 @@ typedef enum _OrcAVXInsnOperandFlag {
   ORC_SSE_INSN_OPERAND_OP2_XMM          \
 )
 
-#define ORC_AVX_INSN_TYPE_SSE_SSE_REG32M_IMM8 (\
+#define ORC_AVX_INSN_TYPE_SSE_SSE_REG32M16_IMM8 (\
   ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |      \
   ORC_X86_INSN_OPERAND_OP3_32 |                \
-  ORC_X86_INSN_OPERAND_OP4_8                   \
+  ORC_X86_INSN_OPERAND_OP4_8 |                 \
+  ORC_X86_INSN_OPERAND_MEM16                   \
 ), (                                           \
   ORC_SSE_INSN_OPERAND_OP1_XMM |               \
   ORC_SSE_INSN_OPERAND_OP2_XMM                 \
@@ -119,6 +120,15 @@ typedef enum _OrcAVXInsnOperandFlag {
   ORC_AVX_INSN_OPERAND_OP1_YMM |             \
   ORC_AVX_INSN_OPERAND_OP2_YMM |             \
   ORC_AVX_INSN_OPERAND_OP3_YMM               \
+)
+
+#define ORC_AVX_INSN_TYPE_AVX_AVX_SSEM_IMM8 (\
+  ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |    \
+  ORC_X86_INSN_OPERAND_OP4_8                 \
+), (                                         \
+  ORC_AVX_INSN_OPERAND_OP1_YMM |             \
+  ORC_AVX_INSN_OPERAND_OP2_YMM |             \
+  ORC_AVX_INSN_OPERAND_OP3_XMM               \
 )
 
 #define ORC_AVX_INSN_TYPE_AVX_AVX_AVXM_AVX (\
@@ -161,20 +171,22 @@ typedef enum _OrcAVXInsnOperandFlag {
   ORC_AVX_INSN_OPERAND_OP2_YMM      \
 )
 
-#define ORC_AVX_INSN_TYPE_SSE_SSE_REGM32_IMM8  (\
+#define ORC_AVX_INSN_TYPE_SSE_SSE_REG32M8_IMM8  (\
   ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |       \
   ORC_X86_INSN_OPERAND_OP3_32 |                 \
-  ORC_X86_INSN_OPERAND_OP4_8                    \
+  ORC_X86_INSN_OPERAND_OP4_8 |                  \
+  ORC_X86_INSN_OPERAND_MEM8                     \
 ), (                                            \
   ORC_SSE_INSN_OPERAND_OP1_XMM |                \
   ORC_SSE_INSN_OPERAND_OP2_XMM                  \
 )
 
-#define ORC_AVX_INSN_TYPE_SSE_SSE_REGM32TO64_IMM8 (\
+#define ORC_AVX_INSN_TYPE_SSE_SSE_REG32TO64M32_IMM8 (\
   ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |          \
   ORC_X86_INSN_OPERAND_OP3_32 |                    \
   ORC_X86_INSN_OPERAND_OP3_64 |                    \
-  ORC_X86_INSN_OPERAND_OP4_8                       \
+  ORC_X86_INSN_OPERAND_OP4_8 |                     \
+  ORC_X86_INSN_OPERAND_MEM32                       \
 ), (                                               \
   ORC_SSE_INSN_OPERAND_OP1_XMM |                   \
   ORC_SSE_INSN_OPERAND_OP2_XMM                     \

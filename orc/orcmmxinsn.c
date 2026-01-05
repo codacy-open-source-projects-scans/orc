@@ -13,6 +13,16 @@
 #include <orc/orcmmxinsn.h>
 #include <orc/orcmmx-private.h>
 
+#define ORC_MMX_INSN_VALIDATE_OPERAND_12(op, n, reg)                           \
+  if ((op->mmx_operands & ORC_MMX_INSN_OPERAND_OP##n##_MM) &&                  \
+      orc_mmx_insn_validate_reg (reg)) {                                       \
+    return TRUE;                                                               \
+  } else {                                                                     \
+    ORC_ERROR ("Unsupported operand %d with reg %d for op %s", n, reg,         \
+        op->name);                                                             \
+    return FALSE;                                                              \
+  }
+
 /*
  * To review, checking https://en.wikipedia.org/wiki/X86_SIMD_instruction_listings
  * PSRLQ: missing extension
@@ -204,53 +214,12 @@ static OrcMMXInsnOp orc_mmx_opcodes[] = {
 /* clang-format on */
 
 static orc_bool
-orc_mmx_insn_validate_operand1_mmx (int reg, int mmx_operands)
+orc_mmx_insn_validate_reg (int reg)
 {
-  /* Confirm if the register is a MMX register */
-  if (!reg)
-    return FALSE;
-  else if (!(mmx_operands & ORC_MMX_INSN_OPERAND_OP1_MM))
-    return FALSE;
-  else if (reg >= X86_MM0 && reg < X86_MM0 + 16)
+  if (reg >= X86_MM0 && reg < X86_MM0 + 16)
     return TRUE;
   else
     return FALSE;
-}
-
-static orc_bool
-orc_mmx_insn_validate_operand2_mmx (int reg, int mmx_operands)
-{
-  /* Confirm if the register is a MMX register */
-  if (!reg)
-    return FALSE;
-  else if (!(mmx_operands & ORC_MMX_INSN_OPERAND_OP2_MM))
-    return FALSE;
-  else if (reg >= X86_MM0 && reg < X86_MM0 + 16)
-    return TRUE;
-  else
-    return FALSE;
-}
-
-static orc_bool
-orc_mmx_insn_validate_operand1_reg (int reg, OrcX86InsnOperandSize size,
-    unsigned int mmx_operands, unsigned int operands)
-{
-  if ((reg >= X86_MM0 && reg < X86_MM0 + 16)) {
-    return orc_mmx_insn_validate_operand1_mmx (reg, mmx_operands);
-  } else {
-    return orc_x86_insn_validate_operand1_reg (reg, size, operands);
-  }
-}
-
-static orc_bool
-orc_mmx_insn_validate_operand2_reg (int reg, OrcX86InsnOperandSize size,
-  unsigned int mmx_operands, unsigned int operands)
-{
-  if ((reg >= X86_MM0 && reg < X86_MM0 + 16)) {
-    return orc_mmx_insn_validate_operand2_mmx (reg, mmx_operands);
-  } else {
-    return orc_x86_insn_validate_operand2_reg (reg, size, operands);
-  }
 }
 
 static void
@@ -269,15 +238,44 @@ orc_mmx_insn_from_opcode (OrcX86Insn *insn, OrcMMXInsnIdx index, const OrcMMXIns
   }
   insn->prefix = ORC_X86_INSN_PREFIX_NO_PREFIX;
   insn->extension = opcode->extension;
+  if (!orc_x86_insn_encoding_from_operands (&insn->encoding, opcode->operands,
+      opcode->extension, FALSE)) {
+    ORC_ERROR ("Can not encode %s (%d) opcode", opcode->name, index);
+  }
 }
 
-static OrcX86InsnOperandSize
-orc_mmx_insn_size_from_reg (OrcX86InsnOperandSize size, int reg)
+static orc_bool
+orc_mmx_insn_validate_operand (OrcX86InsnOperandNum n, int reg, void *data)
 {
-  if (reg >= X86_MM0 && reg < X86_MM0 + 16)
-    return ORC_X86_INSN_OPERAND_SIZE_NONE;
-  else
-    return size;
+  OrcMMXInsnOp *op = (OrcMMXInsnOp *)data;
+  switch (n) {
+    case ORC_X86_INSN_OPERAND_NUM_1:
+      ORC_MMX_INSN_VALIDATE_OPERAND_12 (op, 1, reg)
+      break;
+    case ORC_X86_INSN_OPERAND_NUM_2:
+      ORC_MMX_INSN_VALIDATE_OPERAND_12 (op, 2, reg)
+      break;
+    default:
+      ORC_ERROR ("Unsupported operand num %d", n);
+      return FALSE;
+  }
+  return TRUE;
+}
+
+static orc_bool
+orc_mmx_insn_validate_operands (OrcCompiler *c, int index,
+    OrcX86InsnOperandSize size, const int dest, const int src, orc_int64 imm)
+{
+  const OrcMMXInsnOp *op = orc_mmx_opcodes + index;
+
+  if (!orc_x86_insn_validate_operands (c, op->operands, size, dest, src,
+      ORC_REG_INVALID, ORC_REG_INVALID, imm,
+      &orc_mmx_insn_validate_operand, (void *)op)) {
+    ORC_ERROR ("Failed validating %s (%d)", op->name, index);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 void
@@ -286,12 +284,15 @@ orc_mmx_emit_cpuinsn_none (OrcCompiler *p, int index)
   OrcX86Insn *xinsn = orc_x86_get_output_insn (p);
   const OrcMMXInsnOp *opcode = orc_mmx_opcodes + index;
 
-  if (!orc_x86_insn_validate_no_operands (opcode->operands)) {
-    ORC_ERROR ("Calling the opcode %d with parameters", index);
-  }
+  /* checks */
+  if (!orc_mmx_insn_validate_operands (p, index, ORC_X86_INSN_OPERAND_SIZE_NONE,
+        ORC_REG_INVALID, ORC_REG_INVALID, 0))
+    return;
 
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  xinsn->encoding = ORC_X86_INSN_ENCODING_ZO;
+  orc_x86_insn_set_operands (xinsn, opcode->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, ORC_REG_INVALID, ORC_REG_INVALID,
+      ORC_REG_INVALID, ORC_REG_INVALID);
 }
 
 void
@@ -301,31 +302,15 @@ orc_mmx_emit_cpuinsn_mmx (OrcCompiler *p, int index, int src, int dest)
   const OrcMMXInsnOp *opcode = orc_mmx_opcodes + index;
 
   /* checks */
-  if (!orc_mmx_insn_validate_operand1_mmx (dest, opcode->mmx_operands)) {
-    ORC_ERROR ("Dest register %d not validated for opcode %d", dest, index);
-  }
-
-  if (src && !orc_mmx_insn_validate_operand2_mmx (src, opcode->mmx_operands)) {
-    ORC_ERROR ("Src register %d not validated for opcode %d", src, index);
-  }
+  if (!orc_mmx_insn_validate_operands (p, index, ORC_X86_INSN_OPERAND_SIZE_NONE,
+       dest, src, 0))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  orc_x86_insn_operand_set (&xinsn->operands[0],
-      ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, dest);
-  if (opcode->operands & ORC_X86_INSN_OPERAND_OP1_MEM)
-    xinsn->encoding = ORC_X86_INSN_ENCODING_M;
-  else
-    xinsn->encoding = ORC_X86_INSN_ENCODING_O;
-
-  if (src) {
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, src);
-    if (opcode->operands & ORC_X86_INSN_OPERAND_OP2_MEM)
-      xinsn->encoding = ORC_X86_INSN_ENCODING_RM;
-    else
-      xinsn->encoding = ORC_X86_INSN_ENCODING_MR;
-  }
+  orc_x86_insn_set_operands (xinsn, opcode->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
 }
 
 /* FIXME rename this function to orc_mmx_emit_cpuinsn_reg */
@@ -337,33 +322,13 @@ orc_mmx_emit_cpuinsn_size (OrcCompiler *p, int index, int size, int src, int des
   const OrcX86InsnOperandSize opsize = orc_x86_insn_size_to_operand_size (size);
 
   /* checks */
-  if (!orc_mmx_insn_validate_operand1_reg (dest, opsize, opcode->mmx_operands, opcode->operands)) {
-    ORC_ERROR ("Dest register %d not validated for opcode %d", dest, index);
-  }
-
-  if (src && !orc_mmx_insn_validate_operand2_reg (src, opsize, opcode->mmx_operands, opcode->operands)) {
-    ORC_ERROR ("Src register %d not validated for opcode %d", src, index);
-  }
+  if (!orc_mmx_insn_validate_operands (p, index, opsize, dest, src, 0))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  orc_x86_insn_operand_set (&xinsn->operands[0],
-      ORC_X86_INSN_OPERAND_TYPE_REG, orc_mmx_insn_size_from_reg (opsize, dest),
-      dest);
-  if (opcode->operands & ORC_X86_INSN_OPERAND_OP1_MEM)
-    xinsn->encoding = ORC_X86_INSN_ENCODING_M;
-  else
-    xinsn->encoding = ORC_X86_INSN_ENCODING_O;
-
-  if (src) {
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        ORC_X86_INSN_OPERAND_TYPE_REG, orc_mmx_insn_size_from_reg (opsize, src),
-        src);
-    if (opcode->operands & ORC_X86_INSN_OPERAND_OP2_MEM)
-      xinsn->encoding = ORC_X86_INSN_ENCODING_RM;
-    else
-      xinsn->encoding = ORC_X86_INSN_ENCODING_MR;
-  }
+  orc_x86_insn_set_operands (xinsn, opcode->operands, opsize, dest, src,
+      ORC_REG_INVALID, ORC_REG_INVALID);
 }
 
 /* Using a REG32/64 is the case of palignr and pinsrw */
@@ -374,45 +339,16 @@ orc_mmx_emit_cpuinsn_imm (OrcCompiler *p, int index, int size, int imm,
   OrcX86Insn *xinsn;
   const OrcMMXInsnOp *opcode = orc_mmx_opcodes + index;
   const OrcX86InsnOperandSize opsize = orc_x86_insn_size_to_operand_size (size);
-  orc_bool has_imm1;
-  orc_bool has_imm2;
-  orc_bool has_imm3;
-  orc_bool has_src;
 
   /* checks */
-  has_imm1 = orc_x86_insn_validate_operand1_imm (imm, opcode->operands);
-  has_imm2 = orc_x86_insn_validate_operand2_imm (imm, opcode->operands);
-  has_imm3 = orc_x86_insn_validate_operand3_imm (imm, opcode->operands);
-
-  if (!has_imm1 && !has_imm2 && !has_imm3) {
-    ORC_ERROR ("Setting an imm %" PRIi64 " in a wrong opcode %d (%s)", imm, index, opcode->name);
-  }
-
-  if (!orc_mmx_insn_validate_operand1_reg (dest, opsize, opcode->mmx_operands, opcode->operands)) {
-    ORC_ERROR ("Dest register %d not validated for opcode %s (%d)", dest, opcode->name, index);
-  } 
-
-  has_src = orc_mmx_insn_validate_operand2_reg (src, opsize, opcode->mmx_operands, opcode->operands);
-  if (has_src && !has_imm3) {
-    ORC_ERROR ("Setting a src register %d and no imm in a wrong opcode %d", src, index);
-  }
+  if (!orc_mmx_insn_validate_operands (p, index, opsize, dest, src, imm))
+    return;
   
   xinsn = orc_x86_get_output_insn (p);
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  xinsn->imm = imm;
-  if (has_src) {
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, src);
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->encoding = ORC_X86_INSN_ENCODING_RMI;
-  } else {
-    orc_x86_insn_operand_set (&xinsn->operands[1],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->encoding = ORC_X86_INSN_ENCODING_MI;
-  }
-  orc_x86_insn_operand_set (&xinsn->operands[0],
-      ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, dest);
+  orc_x86_insn_set_operands (xinsn, opcode->operands, opsize, dest, src,
+      ORC_REG_INVALID, ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, opcode->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
 }
 
 /* imm is conditional used
@@ -424,38 +360,22 @@ orc_mmx_emit_cpuinsn_load_memoffset (OrcCompiler *p, int index, int imm,
 {
   OrcX86Insn *xinsn;
   const OrcMMXInsnOp *opcode = orc_mmx_opcodes + index;
+  const OrcX86InsnOperandSize size = p->is_64bit ?
+      ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32;
 
   /* checks */
-  if (!orc_mmx_insn_validate_operand1_mmx (dest, opcode->mmx_operands)) {
-    ORC_ERROR ("Dest register %s not validated for opcode %d",
-        orc_mmx_get_regname_by_size (dest, 8), index);
-  }
-
-  if (!orc_x86_insn_validate_operand2_mem (src, opcode->operands)) {
-    ORC_ERROR ("Src register %d not validated for opcode %d", src, index);
-  }
-
-  if ((opcode->operands & ORC_X86_INSN_OPERAND_OP3_IMM) &&
-      !orc_x86_insn_validate_operand3_imm (imm, opcode->operands)) {
-    ORC_ERROR ("Setting an imm %" PRIi64 " in a wrong opcode %d (%s)", imm, index, opcode->name);
-  }
+  if (!orc_mmx_insn_validate_operands (p, index, size, dest, src, imm))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  xinsn->imm = imm;
-  orc_x86_insn_operand_set (&xinsn->operands[0],
-      ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, dest);
-  orc_x86_insn_operand_set (&xinsn->operands[1],
-      ORC_X86_INSN_OPERAND_TYPE_OFF,
-      p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32,
-      src);
-  xinsn->encoding = ORC_X86_INSN_ENCODING_RM;
-
-  if (opcode->operands & ORC_X86_INSN_OPERAND_OP3_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->encoding = ORC_X86_INSN_ENCODING_RMI;
-  }
+  orc_x86_insn_set_operands (xinsn, opcode->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, ORC_REG_INVALID, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_mem (xinsn, opcode->operands, size,
+      ORC_X86_INSN_OPERAND_TYPE_OFF, ORC_REG_INVALID, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, opcode->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
   xinsn->offset = offset;
 }
 
@@ -465,37 +385,22 @@ orc_mmx_emit_cpuinsn_load_memindex (OrcCompiler *p, int index, int imm,
 {
   OrcX86Insn *xinsn;
   const OrcMMXInsnOp *opcode = orc_mmx_opcodes + index;
+  const OrcX86InsnOperandSize size = p->is_64bit ?
+      ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32;
 
   /* checks */
-  if (!orc_mmx_insn_validate_operand1_mmx (dest, opcode->mmx_operands)) {
-    ORC_ERROR ("Dest register %d not validated for opcode %d", src, index);
-  }
-
-  if (!orc_x86_insn_validate_operand2_mem (src, opcode->operands)) {
-    ORC_ERROR ("Dest register %d not validated for opcode %d", dest, index);
-  }
-
-  if ((opcode->operands & ORC_X86_INSN_OPERAND_OP3_IMM) &&
-      !orc_x86_insn_validate_operand3_imm (imm, opcode->operands)) {
-    ORC_ERROR ("Setting an imm %" PRIi64 " in a wrong opcode %d (%s)", imm, index, opcode->name);
-  }
+  if (!orc_mmx_insn_validate_operands (p, index, size, dest, src, imm))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  xinsn->imm = imm;
-  orc_x86_insn_operand_set (&xinsn->operands[0],
-      ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, dest);
-  orc_x86_insn_operand_set (&xinsn->operands[1],
-      ORC_X86_INSN_OPERAND_TYPE_IDX,
-      p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32,
-      src);
-  xinsn->encoding = ORC_X86_INSN_ENCODING_RM;
-
-  if (opcode->operands & ORC_X86_INSN_OPERAND_OP3_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->encoding = ORC_X86_INSN_ENCODING_RMI;
-  }
+  orc_x86_insn_set_operands (xinsn, opcode->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, dest, ORC_REG_INVALID, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_mem (xinsn, opcode->operands, size,
+      ORC_X86_INSN_OPERAND_TYPE_IDX, ORC_REG_INVALID, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, opcode->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
   xinsn->offset = offset;
   xinsn->index_reg = src_index;
   xinsn->shift = shift;
@@ -507,36 +412,21 @@ orc_mmx_emit_cpuinsn_store_memoffset (OrcCompiler *p, int index, int imm,
 {
   OrcX86Insn *xinsn;
   const OrcMMXInsnOp *opcode = orc_mmx_opcodes + index;
+  const OrcX86InsnOperandSize size = p->is_64bit ?
+      ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32;
 
   /* checks */
-  if (!orc_x86_insn_validate_operand1_mem (dest, opcode->operands)) {
-    ORC_ERROR ("Dest register %d not validated for opcode %d", dest, index);
-  }
-
-  if (!orc_mmx_insn_validate_operand2_mmx (src, opcode->mmx_operands)) {
-    ORC_ERROR ("Src register %d not validated for opcode %d", src, index);
-  }
-
-  if ((opcode->operands & ORC_X86_INSN_OPERAND_OP3_IMM) &&
-      !orc_x86_insn_validate_operand3_imm (imm, opcode->operands)) {
-    ORC_ERROR ("Setting an imm %" PRIi64 " in a wrong opcode %d (%s)", imm, index, opcode->name);
-  }
+  if (!orc_mmx_insn_validate_operands (p, index, size, dest, src, imm))
+    return;
 
   xinsn = orc_x86_get_output_insn (p);
   orc_mmx_insn_from_opcode (xinsn, index, opcode);
-  xinsn->imm = imm;
-  orc_x86_insn_operand_set (&xinsn->operands[0],
-      ORC_X86_INSN_OPERAND_TYPE_OFF,
-      p->is_64bit ? ORC_X86_INSN_OPERAND_SIZE_64 : ORC_X86_INSN_OPERAND_SIZE_32,
-      dest);
-  orc_x86_insn_operand_set (&xinsn->operands[1],
-      ORC_X86_INSN_OPERAND_TYPE_REG, ORC_X86_INSN_OPERAND_SIZE_NONE, src);
-  xinsn->encoding = ORC_X86_INSN_ENCODING_MR;
-
-  if (opcode->operands & ORC_X86_INSN_OPERAND_OP3_IMM) {
-    orc_x86_insn_operand_set (&xinsn->operands[2],
-        ORC_X86_INSN_OPERAND_TYPE_IMM, ORC_X86_INSN_OPERAND_SIZE_8, 0);
-    xinsn->encoding = ORC_X86_INSN_ENCODING_MRI;
-  }
+  orc_x86_insn_set_operands (xinsn, opcode->operands,
+      ORC_X86_INSN_OPERAND_SIZE_NONE, ORC_REG_INVALID, src, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_mem (xinsn, opcode->operands, size,
+      ORC_X86_INSN_OPERAND_TYPE_OFF, dest, ORC_REG_INVALID, ORC_REG_INVALID,
+      ORC_REG_INVALID);
+  orc_x86_insn_set_imm (xinsn, opcode->operands, ORC_X86_INSN_OPERAND_SIZE_8, imm);
   xinsn->offset = offset;
 }

@@ -215,7 +215,7 @@ avx_reduce_accumulator (OrcCompiler *compiler, int i, OrcVariable *var)
     orc_avx_sse_emit_pextrw_memoffset (compiler, 0,
         (int)ORC_STRUCT_OFFSET (OrcExecutor,
             accumulators[i - ORC_VAR_A1]),
-        src, compiler->exec_reg);
+        ORC_AVX_SSE_REG (src), compiler->exec_reg);
   } else {
     orc_x86_emit_mov_avx_memoffset (compiler, 4, src,
         (int)ORC_STRUCT_OFFSET (OrcExecutor,

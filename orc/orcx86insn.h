@@ -28,6 +28,13 @@ ORC_BEGIN_DECLS
  * | vex | opcode | modR/M | SIB | displacement | immediate |
  * +-----+--------+--------+-----+--------------+-----------+
  *
+ * EVEX encoding (in bytes):
+ *    4       1        1      0,1     0,1,2,4        0,1
+ * +------+--------+--------+-----+--------------+-----------+
+ * | evex | opcode | modR/M | SIB | displacement | immediate |
+ * +------+--------+--------+-----+--------------+-----------+
+ * In case of one byte of displacement, the disp8*N is used
+ *
  * The ModR/M has the following syntax (in bits)
  *    2     3     3
  * +-----+-----+-----+
@@ -59,6 +66,9 @@ ORC_BEGIN_DECLS
  * imm32: Immediate value (32 bits)
  * 
  * Memory
+ * m8: Memory 1-byte aligned
+ * m16: Memory 2-byte aligned
+ * m32: Memory 4-byte aligned
  * m64: Memory 8-byte aligned
  * m128: Memory 16-byte aligned
  * m256: Memory 32-byte aligned
@@ -117,6 +127,14 @@ typedef enum _OrcX86InsnOperandFlag {
   ORC_X86_INSN_OPERAND_OP4_REG = (1 << 23), /* Operand4 is a register */
   ORC_X86_INSN_OPERAND_OP4_MEM = (1 << 24), /* Operand4 is a memory */
   ORC_X86_INSN_OPERAND_OP4_IMM = (1 << 25), /* Operand4 is an immediate */
+  /* Special handling for memory sizes. We don't use the size flags as those
+   * define the size of the register when doing a memoffset. These flags
+   * reflect the size of the destination address
+   */
+  ORC_X86_INSN_OPERAND_MEM8    = (1 << 26),
+  ORC_X86_INSN_OPERAND_MEM16   = (1 << 27),
+  ORC_X86_INSN_OPERAND_MEM32   = (1 << 28),
+  ORC_X86_INSN_OPERAND_MEM64   = (1 << 29),
 } OrcX86InsnOperandFlag;
 /* clang-format on */
 
@@ -175,11 +193,13 @@ typedef enum _OrcX86InsnOperandFlag {
 /* By type */
 #define ORC_X86_INSN_OPERAND_REG (ORC_X86_INSN_OPERAND_OP1_REG)
 
+/* One operand */
 #define ORC_X86_INSN_OPERAND_REGM (\
   ORC_X86_INSN_OPERAND_OP1_REG |   \
   ORC_X86_INSN_OPERAND_OP1_MEM     \
 )
 
+/* Two operands */
 #define ORC_X86_INSN_OPERAND_REGM_REG (\
   ORC_X86_INSN_OPERAND_REGM |          \
   ORC_X86_INSN_OPERAND_OP2_REG         \
@@ -201,6 +221,7 @@ typedef enum _OrcX86InsnOperandFlag {
   ORC_X86_INSN_OPERAND_OP2_IMM        \
 )
 
+/* Three operands */
 /* For example IMUL r32, r/m32, imm32 */
 #define ORC_X86_INSN_OPERAND_REG_REGM_IMM (\
   ORC_X86_INSN_OPERAND_OP1_REG |           \
@@ -216,7 +237,6 @@ typedef enum _OrcX86InsnOperandFlag {
   ORC_X86_INSN_OPERAND_OP3_IMM             \
 )
 
-/* Three operands */
 /* For example VMINPS ymm1, ymm2, ymm3/m256 */
 #define ORC_X86_INSN_OPERAND_REG_REG_REGM  (\
   ORC_X86_INSN_OPERAND_OP1_REG |            \
@@ -307,6 +327,9 @@ typedef enum _OrcX86InsnPrefix {
   ORC_X86_INSN_PREFIX_NO_PREFIX,
   ORC_X86_INSN_PREFIX_VEX128,
   ORC_X86_INSN_PREFIX_VEX256,
+  ORC_X86_INSN_PREFIX_EVEX128,
+  ORC_X86_INSN_PREFIX_EVEX256,
+  ORC_X86_INSN_PREFIX_EVEX512,
 } OrcX86InsnPrefix;
 
 typedef enum _OrcX86InsnOpcodeEscapeSequence {
@@ -324,10 +347,53 @@ typedef enum _OrcX86InsnOpcodePrefix {
   ORC_X86_INSN_OPCODE_PREFIX_0XF2, /* Scalar Single */
 } OrcX86InsnOpcodePrefix;
 
+
+/**
+ * OrcX86InsnOpcodeFlag:
+ *
+ * @ORC_X86_INSN_OPCODE_FLAG_NONE  : No specific flag for this instruction
+ * definition.
+ * @ORC_X86_INSN_OPCODE_FLAG_VEX_W1: For SIMD only instructions, the quadword
+ * variant (64-bit) require this to indicate the REX.W bit set. In general
+ * when a general purpose registers is used in the instruction, this is
+ * inferred.
+ * @ORC_X86_INSN_OPCODE_FLAG_EVEX_K: The instruction can use mask registers
+ * @ORC_X86_INSN_OPCODE_FLAG_EVEX_Z: The instruction can use zero/merge
+ */ 
 typedef enum _OrcX86InsnOpcodeFlag {
   ORC_X86_INSN_OPCODE_FLAG_NONE     = (0 << 0),
   ORC_X86_INSN_OPCODE_FLAG_VEX_W1   = (1 << 0),
+  ORC_X86_INSN_OPCODE_FLAG_EVEX_K   = (1 << 1),
+  ORC_X86_INSN_OPCODE_FLAG_EVEX_Z   = (1 << 2),
 } OrcX86InsnOpcodeFlag;
+
+#define ORC_X86_INSN_OPCODE_FLAG_EVEX_K_Z (\
+  ORC_X86_INSN_OPCODE_FLAG_EVEX_K |        \
+  ORC_X86_INSN_OPCODE_FLAG_EVEX_Z          \
+)
+
+typedef enum _OrcX86InsnDispType {
+  ORC_X86_INSN_DISP_TYPE_0,
+  ORC_X86_INSN_DISP_TYPE_8,
+  ORC_X86_INSN_DISP_TYPE_8N,
+  ORC_X86_INSN_DISP_TYPE_32
+} OrcX86InsnDispType;
+
+typedef enum _OrcX86InsnTupleType {
+  ORC_X86_INSN_TUPLE_TYPE_FULL,
+  ORC_X86_INSN_TUPLE_TYPE_HALF,
+  ORC_X86_INSN_TUPLE_TYPE_FULL_MEM,
+  ORC_X86_INSN_TUPLE_TYPE_T1_SCALAR,
+  ORC_X86_INSN_TUPLE_TYPE_T1_FIXED,
+  ORC_X86_INSN_TUPLE_TYPE_T2,
+  ORC_X86_INSN_TUPLE_TYPE_T4,
+  ORC_X86_INSN_TUPLE_TYPE_T8,
+  ORC_X86_INSN_TUPLE_TYPE_HALF_MEM,
+  ORC_X86_INSN_TUPLE_TYPE_QUARTER_MEM,
+  ORC_X86_INSN_TUPLE_TYPE_EIGHTH_MEM,
+  ORC_X86_INSN_TUPLE_TYPE_MEM_128,
+  ORC_X86_INSN_TUPLE_TYPE_MOVDDUP,
+} OrcX86InsnTupleType;
 
 /* FIXME here the suffixes are inverted. src_dst */
 typedef enum _OrcX86OpcodeIdx {
@@ -432,12 +498,22 @@ typedef enum _OrcX86InsnOperandType {
 } OrcX86InsnOperandType;
 
 typedef enum _OrcX86InsnOperandSize {
-  ORC_X86_INSN_OPERAND_SIZE_NONE,
-  ORC_X86_INSN_OPERAND_SIZE_8,
-  ORC_X86_INSN_OPERAND_SIZE_16,
-  ORC_X86_INSN_OPERAND_SIZE_32,
-  ORC_X86_INSN_OPERAND_SIZE_64,
+  ORC_X86_INSN_OPERAND_SIZE_NONE = 0,
+  ORC_X86_INSN_OPERAND_SIZE_8    = 1,
+  ORC_X86_INSN_OPERAND_SIZE_16   = 2,
+  ORC_X86_INSN_OPERAND_SIZE_32   = 4,
+  ORC_X86_INSN_OPERAND_SIZE_64   = 8,
 } OrcX86InsnOperandSize;
+
+typedef enum _OrcX86InsnOperandNum {
+  ORC_X86_INSN_OPERAND_NUM_1 = 1,
+  ORC_X86_INSN_OPERAND_NUM_2,
+  ORC_X86_INSN_OPERAND_NUM_3,
+  ORC_X86_INSN_OPERAND_NUM_4,
+} OrcX86InsnOperandNum;
+
+typedef orc_bool (*OrcX86InsnValidateSIMDOperand)(OrcX86InsnOperandNum num,
+    int reg, void *data);
 
 typedef enum _OrcX86InsnEncoding {
   ORC_X86_INSN_ENCODING_NONE, /* For offset only */
@@ -448,13 +524,16 @@ typedef enum _OrcX86InsnEncoding {
   ORC_X86_INSN_ENCODING_OI,   /* For register embedded in the opcode, immediate */
   ORC_X86_INSN_ENCODING_MI,   /* For memory/register and immediate, like MOV r/m32, imm32 */
   ORC_X86_INSN_ENCODING_MR,   /* For memory/register and register like ADD r/m16, r16 (Also SIMD B) */
-  ORC_X86_INSN_ENCODING_MRI,  /* For memory/register, register and immdiate (Also SIMD B) */
+  ORC_X86_INSN_ENCODING_MRI,  /* For memory/register, register and immdiate (Also SIMD B), like VEXTRACTF128 xmm1/m128, ymm2, imm8 */
   ORC_X86_INSN_ENCODING_VMI,  /* VEX. For register, register and immediate, like VPSRLW ymm1, ymm2, imm8 */
   ORC_X86_INSN_ENCODING_RM,   /* For register and memory/register, like ADD r16, r/m16 (Also SIMD A) */
   ORC_X86_INSN_ENCODING_RMI,  /* For register, memory and immediate, like PSHUFD xmm1, xmm2/m128, imm8 (Also SIMD A) */
   ORC_X86_INSN_ENCODING_RVM,  /* VEX. For three operands, like VPSRLW xmm1, xmm2, xmm3/m128 */
   ORC_X86_INSN_ENCODING_RVMI, /* VEX. For four operands, like VPBLENDD xmm1, xmm2, xmm3/m128, imm8 */
   ORC_X86_INSN_ENCODING_RVMR, /* VEX. For four opeands using imm for a register like VBLENDVPD xmm1, xmm2, xmm3/m128, xmm4 */
+  ORC_X86_INSN_ENCODING_RR,   /* VEX (AVX512). For two operands, like KMOVW k1, r32 */
+  ORC_X86_INSN_ENCODING_RVR,  /* VEX (AVX512). For three operands, like KANDNW k1, k2, k3 */
+  ORC_X86_INSN_ENCODING_RRI,  /* VEX (AVX512). For three operands, like KSHIFTLW k1, k2, imm8 */
 } OrcX86InsnEncoding;
 
 typedef struct _OrcX86InsnOperand {
@@ -491,6 +570,10 @@ typedef struct _OrcX86Insn {
   OrcX86InsnOperand operands[4];
   /* FIXME we use a fixed length to avoid having to free */
   char comment[40];
+  OrcX86InsnTupleType tuple_type;
+  OrcX86InsnOperandSize mem_size;
+  int k;
+  orc_bool zero;
 } OrcX86Insn;
 
 ORC_API OrcX86Insn * orc_x86_get_output_insn (OrcCompiler *p);
