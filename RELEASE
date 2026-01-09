@@ -1,3 +1,21 @@
+0.4.42
+======
+
+ - Initial 64-bit RISC-V support (Maksymilian Knust, Filip Wasil)
+ - Add 64-bit LoongArch support (Jin Bo, Hecai Yuan)
+ - Implement release and reuse of temporary registers for some targets (Jorge Zapata)
+ - x86: Implement EVEX encoding and an opcode validation system (Jorge Zapata)
+ - x86: Opcode refactor, improved constant handling and various other fixes (Jorge Zapata)
+ - x86: add missing rounding operands for AVX and SSE (L. E. Segovia)
+ - x86: Implement 64-bit single move constant load (L. E. Segovia)
+ - includes: stop exporting the private compiler and OrcTarget definitions (Jorge Zapata)
+ - Use hotdoc instead of gtk-doc to generate the documentation (Jorge Zapata)
+ - ORC_DEBUG_FATAL environment variable allows abort on log messages of a certain level (Carlos Falgueras García)
+ - Error message improvements and NEON backend clean-ups (Alexander Slobodeniuk)
+ - Fix a few valgrind issues (Doug Nazar)
+ - Build: enable tools such as orcc and orc-bugreport by default (Nirbheek Chauhan)
+ - Various build fixes (L. E. Segovia, Sebastian Dröge)
+
 0.4.41
 ======
 
