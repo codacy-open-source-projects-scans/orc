@@ -12,6 +12,7 @@
 
 static const char *c_get_type_name (int size);
 static void c_get_name_int (char *name, OrcCompiler *p, OrcInstruction *insn, int var);
+static void c_get_const_var_literal (OrcCompiler *p, const OrcVariable *var, char lit[40]);
 
 void orc_c_init (void);
 
@@ -512,6 +513,25 @@ c_get_name_int (char *name, OrcCompiler *p, OrcInstruction *insn, int var)
 }
 
 static void
+c_get_const_var_literal (OrcCompiler *p, const OrcVariable *var, char lit[40])
+{
+  orc_uint32 v32 = var->value.i;
+  orc_uint64 v64 = var->value.i;
+  switch (var->size) {
+      case 1: snprintf (lit, 40, "0x%02x", v32 & 0xFF); break;
+      case 2: snprintf (lit, 40, "0x%04x", v32 & 0xFFFF); break;
+      case 4: snprintf (lit, 40, "0x%08x", v32); break;
+      case 8:
+        snprintf (lit, 40, "ORC_UINT64_C(0x%08x%08x)",
+            (orc_uint32)(v64 >> 32), v32); // %llx is not available everywhere
+        break;
+      default:
+        ORC_COMPILER_ERROR(p, "Variable size %d not supported", var->size);
+        break;
+  }
+}
+
+static void
 c_get_name_float (char *name, OrcCompiler *p, OrcInstruction *insn, int var)
 {
   if (insn && (insn->flags & ORC_INSTRUCTION_FLAG_X2)) {
@@ -813,17 +833,11 @@ c_rule_loadpX (OrcCompiler *p, void *user, OrcInstruction *insn)
       }
     }
   } else if (p->vars[insn->src_args[0]].vartype == ORC_VAR_TYPE_CONST) {
-    if (p->vars[insn->src_args[0]].size <= 4) {
-      ORC_ASM_CODE(p,"    %s = 0x%08x; /* %d or %gf */\n", dest,
-          (unsigned int)p->vars[insn->src_args[0]].value.i,
-          (int)p->vars[insn->src_args[0]].value.i,
-          p->vars[insn->src_args[0]].value.f);
-    } else {
-      ORC_ASM_CODE(p,"    %s = ORC_UINT64_C(0x%08x%08x); /* %gf */\n", dest,
-          (orc_uint32)(((orc_uint64)p->vars[insn->src_args[0]].value.i)>>32),
-          ((orc_uint32)p->vars[insn->src_args[0]].value.i),
-          p->vars[insn->src_args[0]].value.f);
-    }
+    char lit[40];
+    const OrcVariable *src = &p->vars[insn->src_args[0]];
+    c_get_const_var_literal (p, src, lit);
+    ORC_ASM_CODE(p,"    %s = %s; /* %d or %gf */\n",
+        dest, lit, (int)src->value.i, src->value.f);
   } else {
     ORC_COMPILER_ERROR(p, "expected param or constant");
   }

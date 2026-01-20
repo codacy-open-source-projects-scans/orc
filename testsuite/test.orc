@@ -2814,3 +2814,19 @@ convql d1, t1
 .temp 4 tmp
 sqrtf tmp, src
 mulf dst, tmp, k
+
+
+.function negative_constants
+.dest 1 dst8
+.dest 2 dst16
+.dest 4 dst32
+.dest 8 dst64
+.const 1 c8 -1
+.const 2 c16 -1
+.const 4 c32 -1
+.const 8 c64 -1
+
+addb dst8, dst8, c8
+addw dst16, dst16, c16
+addl dst32, dst32, c32
+addq dst64, dst64, c64
