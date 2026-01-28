@@ -63,6 +63,15 @@ void orc_vector_append (OrcVector *vector, void *item);
 int orc_vector_length (OrcVector *vector);
 int orc_vector_has_data (OrcVector *vector);
 
+static inline unsigned int
+orc_count_ones (unsigned int v)
+{
+  // https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+  v = v - ((v >> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  return (((v + (v >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
+}
+
 ORC_END_DECLS
 
 #endif /* _ORC_UTILS_PRIVATE_H_ */

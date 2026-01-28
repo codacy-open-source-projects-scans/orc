@@ -10,6 +10,7 @@
 #include <orc/orcdebug.h>
 #include <orc/orcprogram.h>
 #include <orc/orcarm.h>
+#include <orc/orcarminsn.h>
 
 #define BINARY_DP(opcode,insn_name) \
 static void \
@@ -34,50 +35,6 @@ arm_rule_ ## opcode (OrcCompiler *p, void *user, OrcInstruction *insn) \
   orc_arm_emit_##insn_name (p, ORC_ARM_COND_AL, dest, src1, src2);     \
 }
 
-/* multiplies */
-#define orc_arm_smulxy(cond,x,y,Rd,Rm,Rs) (0x01600080|((cond)<<28)|(((Rd)&15)<<16)|(((Rs)&15)<<8)|((y)<<6)|((x)<<5)|((Rm)&15))
-#define orc_arm_emit_smulbb(p,cond,Rd,Rm,Rs) do { \
-  ORC_ASM_CODE (p, "smulbb %s, %s, %s\n", orc_arm_reg_name (Rd), \
-      orc_arm_reg_name (Rm), orc_arm_reg_name(Rs)); \
-  orc_arm_emit (p, orc_arm_smulxy (cond,0,0,Rd,Rm,Rs)); \
-} while (0)
-#define orc_arm_emit_smulbt(p,cond,Rd,Rm,Rs) do { \
-  ORC_ASM_CODE (p, "smulbt %s, %s, %s\n", orc_arm_reg_name (Rd), \
-      orc_arm_reg_name (Rm), orc_arm_reg_name(Rs)); \
-  orc_arm_emit (p, orc_arm_smulxy (cond,0,1,Rd,Rm,Rs)); \
-} while (0)
-#define orc_arm_emit_smultb(p,cond,Rd,Rm,Rs) do { \
-  ORC_ASM_CODE (p, "smultb %s, %s, %s\n", orc_arm_reg_name (Rd), \
-      orc_arm_reg_name (Rm), orc_arm_reg_name(Rs)); \
-  orc_arm_emit (p, orc_arm_smulxy (cond,1,0,Rd,Rm,Rs)); \
-} while (0)
-#define orc_arm_emit_smultt(p,cond,Rd,Rm,Rs) do { \
-  ORC_ASM_CODE (p, "smultt %s, %s, %s\n", orc_arm_reg_name (Rd), \
-      orc_arm_reg_name (Rm), orc_arm_reg_name(Rs)); \
-  orc_arm_emit (p, orc_arm_smulxy (cond,1,1,Rd,Rm,Rs)); \
-} while (0)
-
-#define orc_arm_mul(cond,S,Rd,Rm,Rs) (0x00000090|((cond)<<28)|((S)<<20)|(((Rd)&15)<<16)|(((Rs)&15)<<8)|((Rm)&15))
-#define orc_arm_emit_mul(p,cond,S,Rd,Rm,Rs) do { \
-  ORC_ASM_CODE (p, "mul %s, %s, %s\n", orc_arm_reg_name (Rd), \
-      orc_arm_reg_name (Rm), orc_arm_reg_name(Rs)); \
-  orc_arm_emit (p, orc_arm_mul (cond,S,Rd,Rm,Rs)); \
-} while (0)
-
-#define orc_arm_mull(op,cond,S,RdL,RdH,Rn,Rm) (op|((cond)<<28)|((S)<<20)|(((Rn)&15)<<16)|(((RdL)&15)<<12)|(((RdH)&15)<<8)|((Rm)&15))
-#define orc_arm_emit_smull(p,cond,S,RdL,RdH,Rn,Rm) do { \
-  ORC_ASM_CODE (p, "smull %s, %s, %s, %s\n", orc_arm_reg_name (RdL), \
-      orc_arm_reg_name (RdH), \
-      orc_arm_reg_name (Rn), orc_arm_reg_name(Rm)); \
-  orc_arm_emit(p,orc_arm_mull (0x00c00090,cond,S,RdL,Rm,RdH,Rn)); \
-} while (0)
-#define orc_arm_emit_umull(p,cond,S,RdL,RdH,Rn,Rm) do { \
-  ORC_ASM_CODE (p, "umull %s, %s, %s, %s\n", orc_arm_reg_name (RdL), \
-      orc_arm_reg_name (RdH), \
-      orc_arm_reg_name (Rn), orc_arm_reg_name(Rm)); \
-  orc_arm_emit(p,orc_arm_mull (0x00800090,cond,S,RdL,RdH,Rn,Rm)); \
-} while (0)
-
 static void
 arm_rule_loadpX (OrcCompiler *compiler, void *user, OrcInstruction *insn)
 {
@@ -85,7 +42,7 @@ arm_rule_loadpX (OrcCompiler *compiler, void *user, OrcInstruction *insn)
     orc_arm_emit_load_imm (compiler, compiler->vars[insn->dest_args[0]].alloc,
         (int)compiler->vars[insn->src_args[0]].value.i);
   } else {
-    orc_arm_loadw (compiler, compiler->vars[insn->dest_args[0]].alloc,
+    orc_arm_emit_ldrh (compiler, compiler->vars[insn->dest_args[0]].alloc,
         compiler->exec_reg,
         (int)ORC_STRUCT_OFFSET(OrcExecutor, params[insn->src_args[0]]));
   }
@@ -160,92 +117,7 @@ arm_rule_storeX (OrcCompiler *compiler, void *user, OrcInstruction *insn)
 }
 
 void
-orc_arm_loadb (OrcCompiler *compiler, int dest, int src1, int offset)
-{
-  orc_uint32 code;
-
-  code = 0xe5d00000;
-  code |= (src1&0xf) << 16;
-  code |= (dest&0xf) << 12;
-  code |= (offset&0xf0) << 4;
-  code |= offset&0x0f;
-
-  ORC_ASM_CODE(compiler,"  ldrb %s, [%s, #%d]\n",
-      orc_arm_reg_name (dest),
-      orc_arm_reg_name (src1), offset);
-  orc_arm_emit (compiler, code);
-}
-
-void
-orc_arm_storeb (OrcCompiler *compiler, int dest, int offset, int src1)
-{
-  orc_uint32 code;
-
-  code = 0xe5c00000;
-  code |= (dest&0xf) << 16;
-  code |= (src1&0xf) << 12;
-  code |= (offset&0xf0) << 4;
-  code |= offset&0x0f;
-
-  ORC_ASM_CODE(compiler,"  strb %s, [%s, #%d]\n",
-      orc_arm_reg_name (src1),
-      orc_arm_reg_name (dest), offset);
-  orc_arm_emit (compiler, code);
-}
-
-void
-orc_arm_loadl (OrcCompiler *compiler, int dest, int src1, int offset)
-{
-  orc_uint32 code;
-
-  code = 0xe5900000;
-  code |= (src1&0xf) << 16;
-  code |= (dest&0xf) << 12;
-  code |= (offset&0xf0) << 4;
-  code |= offset&0x0f;
-
-  ORC_ASM_CODE(compiler,"  ldr %s, [%s, #%d]\n",
-      orc_arm_reg_name (dest),
-      orc_arm_reg_name (src1), offset);
-  orc_arm_emit (compiler, code);
-}
-
-void
-orc_arm_storel (OrcCompiler *compiler, int dest, int offset, int src1)
-{
-  orc_uint32 code;
-
-  code = 0xe5800000;
-  code |= (dest&0xf) << 16;
-  code |= (src1&0xf) << 12;
-  code |= (offset&0xf0) << 4;
-  code |= offset&0x0f;
-
-  ORC_ASM_CODE(compiler,"  str %s, [%s, #%d]\n",
-      orc_arm_reg_name (src1),
-      orc_arm_reg_name (dest), offset);
-  orc_arm_emit (compiler, code);
-}
-
-void
-orc_arm_storew (OrcCompiler *compiler, int dest, int offset, int src1)
-{
-  orc_uint32 code;
-
-  code = 0xe1c000b0;
-  code |= (dest&0xf) << 16;
-  code |= (src1&0xf) << 12;
-  code |= (offset&0xf0) << 4;
-  code |= offset&0x0f;
-
-  ORC_ASM_CODE(compiler,"  strh %s, [%s, #%d]\n",
-      orc_arm_reg_name (src1),
-      orc_arm_reg_name (dest), offset);
-  orc_arm_emit (compiler, code);
-}
-
-void
-orc_arm_emit_mov_iw (OrcCompiler *p, int cond, int dest, int val, int loop)
+orc_arm_mov_iw (OrcCompiler *p, int cond, int dest, int val, int loop)
 {
   /* dest = val */
   orc_arm_emit_mov_i (p, cond, 0, dest, val);
@@ -255,7 +127,7 @@ orc_arm_emit_mov_iw (OrcCompiler *p, int cond, int dest, int val, int loop)
 }
 
 void
-orc_arm_emit_mov_ib (OrcCompiler *p, int cond, int dest, int val, int loop)
+orc_arm_mov_ib (OrcCompiler *p, int cond, int dest, int val, int loop)
 {
   /* 1 byte */
   orc_arm_emit_mov_i (p, cond, 0, dest, val);
@@ -645,10 +517,10 @@ arm_rule_shlX (OrcCompiler *p, void *user, OrcInstruction *insn)
           orc_arm_emit_mov_rsi (p, ORC_ARM_COND_AL, 1, dest, src1, ORC_ARM_LSL, val);
           if (size == 1)
             /* make loop * 0x80 */
-            orc_arm_emit_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
+            orc_arm_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
           else
             /* make loop * 0x8000 */
-            orc_arm_emit_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
+            orc_arm_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
           /* make mask, this mask has enough bits but is shifted one position to the right */
           orc_arm_emit_sub_rsi (p, ORC_ARM_COND_NE, 0, mask, mask, mask, ORC_ARM_LSR, val);
           /* clear upper bits */
@@ -666,10 +538,10 @@ arm_rule_shlX (OrcCompiler *p, void *user, OrcInstruction *insn)
       orc_arm_emit_mov_rsr (p, ORC_ARM_COND_AL, 1, dest, src1, ORC_ARM_LSL, src2);
       if (size == 1)
         /* make loop * 0x80 */
-        orc_arm_emit_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
+        orc_arm_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
       else
         /* make loop * 0x8000 */
-        orc_arm_emit_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
+        orc_arm_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
       /* make mask */
       orc_arm_emit_sub_rsr (p, ORC_ARM_COND_NE, 0, mask, mask, mask, ORC_ARM_LSR, src2);
       /* clear bits */
@@ -710,10 +582,10 @@ arm_rule_shrsX (OrcCompiler *p, void *user, OrcInstruction *insn)
         } else {
           if (size == 1)
             /* make loop * 80, position of sign bit after shift */
-            orc_arm_emit_mov_ib (p, ORC_ARM_COND_AL, mask, 0x80, loop);
+            orc_arm_mov_ib (p, ORC_ARM_COND_AL, mask, 0x80, loop);
           else
             /* make loop * 8000 */
-            orc_arm_emit_mov_iw (p, ORC_ARM_COND_AL, mask, 0x8000, loop);
+            orc_arm_mov_iw (p, ORC_ARM_COND_AL, mask, 0x8000, loop);
           /* make mask, save in tmp, we need the original mask */
           orc_arm_emit_sub_rsi (p, ORC_ARM_COND_AL, 0, tmp, mask, mask, ORC_ARM_LSR, val);
 
@@ -741,10 +613,10 @@ arm_rule_shrsX (OrcCompiler *p, void *user, OrcInstruction *insn)
     if (size < 4) {
       if (size == 1)
         /* make loop * 0x80 */
-        orc_arm_emit_mov_ib (p, ORC_ARM_COND_AL, mask, 0x80, loop);
+        orc_arm_mov_ib (p, ORC_ARM_COND_AL, mask, 0x80, loop);
       else
         /* make loop * 0x8000 */
-        orc_arm_emit_mov_iw (p, ORC_ARM_COND_AL, mask, 0x8000, loop);
+        orc_arm_mov_iw (p, ORC_ARM_COND_AL, mask, 0x8000, loop);
       /* make mask */
       orc_arm_emit_sub_rsr (p, ORC_ARM_COND_AL, 0, tmp, mask, mask, ORC_ARM_LSR, src2);
 
@@ -798,10 +670,10 @@ arm_rule_shruX (OrcCompiler *p, void *user, OrcInstruction *insn)
 
           if (size == 1)
             /* make loop * 0x80 */
-            orc_arm_emit_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
+            orc_arm_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
           else
             /* make loop * 0x8000 */
-            orc_arm_emit_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
+            orc_arm_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
           /* make mask */
           orc_arm_emit_sub_rsi (p, ORC_ARM_COND_NE, 0, mask, mask, mask, ORC_ARM_LSR, val);
 
@@ -822,10 +694,10 @@ arm_rule_shruX (OrcCompiler *p, void *user, OrcInstruction *insn)
 
       if (size == 1)
         /* make loop * 0x80 */
-        orc_arm_emit_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
+        orc_arm_mov_ib (p, ORC_ARM_COND_NE, mask, 0x80, loop);
       else
         /* make loop * 0x8000 */
-        orc_arm_emit_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
+        orc_arm_mov_iw (p, ORC_ARM_COND_NE, mask, 0x8000, loop);
       /* make mask */
       orc_arm_emit_sub_rsr (p, ORC_ARM_COND_NE, 0, mask, mask, mask, ORC_ARM_LSR, src2);
 

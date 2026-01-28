@@ -9,8 +9,8 @@ ORC_BEGIN_DECLS
 
 #ifdef ORC_ENABLE_UNSTABLE_API
 
-ORC_API const char *orc_neon_reg_name (int reg);
-ORC_API const char *orc_neon_reg_name_quad (int reg);
+ORC_API const char *orc_neon32_reg_name (int reg);
+ORC_API const char *orc_neon32_reg_name_quad (int reg);
 
 ORC_API const char *orc_neon64_reg_name_vector (int reg, int size, int quad);
 
@@ -28,10 +28,6 @@ ORC_API void orc_neon_storeb (OrcCompiler *compiler, int dest, int update, int s
 ORC_API void orc_neon_storew (OrcCompiler *compiler, int dest, int update, int src1, int is_aligned);
 ORC_API void orc_neon_storel (OrcCompiler *compiler, int dest, int update, int src1, int is_aligned);
 ORC_API void orc_neon_storeq (OrcCompiler *compiler, int dest, int update, int src1, int is_aligned);
-ORC_API void orc_neon_emit_loadil (OrcCompiler *p, OrcVariable *dest, int value);
-ORC_API void orc_neon_emit_loadpb (OrcCompiler *p, int reg, int param);
-ORC_API void orc_neon_emit_loadpw (OrcCompiler *p, int reg, int param);
-ORC_API void orc_neon_emit_loadpl (OrcCompiler *p, int reg, int param);
 ORC_API void orc_neon_preload (OrcCompiler *compiler, OrcVariable *var, int write,
     int offset);
 

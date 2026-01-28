@@ -25,6 +25,8 @@ orc_sources = [
 orc_headers = [
   'orc.h',
   'orcarm.h',
+  'orcarminsn.h',
+  'orcarm64insn.h',
   'orcavx.h',
   'orcavxinsn.h',
   'orcbytecode.h',
@@ -85,7 +87,17 @@ if 'altivec' in enabled_targets
 endif
 
 if 'neon' in enabled_targets
-  orc_sources += ['orcprogram-neon.c', 'orcrules-neon.c', 'orcarm.c']
+  orc_sources += [
+    'orcprogram-neon.c',
+    'orcprogram-neon32.c',
+    'orcprogram-neon64.c',
+    'orcrules-neon.c',
+    'orcrules-neon32.c',
+    'orcrules-neon64.c',
+    'orcarm.c',
+    'orcarminsn.c',
+    'orcarm64insn.c',
+  ]
 endif
 
 # ARM target is disabled until it has decent coverage
