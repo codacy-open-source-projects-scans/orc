@@ -82,7 +82,7 @@ ORC_BEGIN_DECLS
  * mm: MMX register (64 bits)
  * xmm: SSE register (128 bits)
  * ymm: AVX register (256 bits)
- * zmm: AVX2 register (512 bits)
+ * zmm: AVX512 register (512 bits)
  *
  * Offset
  * Segment + Absolute address

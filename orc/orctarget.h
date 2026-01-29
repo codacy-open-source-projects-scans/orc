@@ -96,6 +96,32 @@ typedef enum {
   ORC_TARGET_LOONGARCH_LASX = (1<<3),
 } OrcTargetLASXFlags;
 
+typedef enum _OrcTargetAVX512Flags {
+  ORC_TARGET_AVX512_FRAME_POINTER = (1<<0),
+  ORC_TARGET_AVX512_SHORT_JUMPS   = (1<<1),
+  ORC_TARGET_AVX512_64BIT         = (1<<2),
+  ORC_TARGET_AVX512_F             = (1<<3),
+  ORC_TARGET_AVX512_CD            = (1<<4),
+  ORC_TARGET_AVX512_ER            = (1<<5),
+  ORC_TARGET_AVX512_PF            = (1<<6),
+  ORC_TARGET_AVX512_4FMAPS        = (1<<7),
+  ORC_TARGET_AVX512_4VNNIW        = (1<<8),
+  ORC_TARGET_AVX512_VPOPCNTDQ     = (1<<9),
+  ORC_TARGET_AVX512_VL            = (1<<10),
+  ORC_TARGET_AVX512_DQ            = (1<<11),
+  ORC_TARGET_AVX512_BW            = (1<<12),
+  ORC_TARGET_AVX512_IFMA          = (1<<13),
+  ORC_TARGET_AVX512_VBMI          = (1<<14),
+  ORC_TARGET_AVX512_VNNI          = (1<<15),
+  ORC_TARGET_AVX512_BF16          = (1<<16),
+  ORC_TARGET_AVX512_VBMI2         = (1<<17),
+  ORC_TARGET_AVX512_BITALG        = (1<<18),
+  ORC_TARGET_AVX512_VPCLMULQDQ    = (1<<19),
+  ORC_TARGET_AVX512_GFNI          = (1<<20),
+  ORC_TARGET_AVX512_VAES          = (1<<21),
+  ORC_TARGET_AVX512_VP2INTERSECT  = (1<<22),
+  ORC_TARGET_AVX512_FP16          = (1<<23),
+} OrcTargetAVX512Flags;
 
 ORC_API OrcRule *    orc_target_get_rule (OrcTarget *target,
                                           OrcStaticOpcode *opcode,
@@ -116,9 +142,11 @@ ORC_API OrcTarget *  orc_target_get_by_name (const char *target_name);
 #ifdef ORC_ENABLE_UNSTABLE_API
 ORC_API OrcRuleSet * orc_target_add_rule_set (OrcTarget *target,
     OrcOpcodeSet *opcode_set, unsigned int required_flags);
+ORC_API OrcTarget * orc_target_get_by_idx (int idx);
+ORC_API int orc_target_n_get (void);
+ORC_API orc_bool orc_target_is_executable (OrcTarget *target);
 #endif
 
 ORC_END_DECLS
 
 #endif
-

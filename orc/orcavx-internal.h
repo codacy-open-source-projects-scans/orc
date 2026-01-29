@@ -39,6 +39,25 @@ typedef enum _OrcAVXInsnOperandFlag {
   ORC_AVX_INSN_OPERAND_OP2_YMM      \
 )
 
+#define ORC_AVX_INSN_TYPE_AVX_REG32 (\
+  ORC_X86_INSN_OPERAND_OP1_REG |     \
+  ORC_X86_INSN_OPERAND_OP2_REG |     \
+  ORC_X86_INSN_OPERAND_OP2_32        \
+), ORC_AVX_INSN_OPERAND_OP1_YMM
+
+#define ORC_AVX_INSN_TYPE_AVX_REG64 (\
+  ORC_X86_INSN_OPERAND_OP1_REG |     \
+  ORC_X86_INSN_OPERAND_OP2_REG |     \
+  ORC_X86_INSN_OPERAND_OP2_64        \
+), ORC_AVX_INSN_OPERAND_OP1_YMM
+
+#define ORC_AVX_INSN_TYPE_AVX_REG32TO64 (\
+  ORC_X86_INSN_OPERAND_OP1_REG |         \
+  ORC_X86_INSN_OPERAND_OP2_REG |         \
+  ORC_X86_INSN_OPERAND_OP2_32 |          \
+  ORC_X86_INSN_OPERAND_OP2_64            \
+), ORC_AVX_INSN_OPERAND_OP1_YMM
+
 #define ORC_AVX_INSN_TYPE_SSE_AVXM (\
   ORC_X86_INSN_OPERAND_REG_REGM     \
 ), (                                \
@@ -156,6 +175,45 @@ typedef enum _OrcAVXInsnOperandFlag {
   ORC_SSE_INSN_OPERAND_OP2_XMM      \
 )
 
+#define ORC_AVX_INSN_TYPE_AVX_SSEM8 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |    \
+  ORC_X86_INSN_OPERAND_MEM8          \
+), (                                 \
+  ORC_AVX_INSN_OPERAND_OP1_YMM |     \
+  ORC_SSE_INSN_OPERAND_OP2_XMM       \
+)
+
+#define ORC_AVX_INSN_TYPE_AVX_SSEM16 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |     \
+  ORC_X86_INSN_OPERAND_MEM16          \
+), (                                  \
+  ORC_AVX_INSN_OPERAND_OP1_YMM |      \
+  ORC_SSE_INSN_OPERAND_OP2_XMM        \
+)
+
+#define ORC_AVX_INSN_TYPE_AVX_SSEM32 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |     \
+  ORC_X86_INSN_OPERAND_MEM32          \
+), (                                  \
+  ORC_AVX_INSN_OPERAND_OP1_YMM |      \
+  ORC_SSE_INSN_OPERAND_OP2_XMM        \
+)
+
+#define ORC_AVX_INSN_TYPE_AVX_SSEM64 (\
+  ORC_X86_INSN_OPERAND_REG_REGM |     \
+  ORC_X86_INSN_OPERAND_MEM64          \
+), (                                  \
+  ORC_AVX_INSN_OPERAND_OP1_YMM |      \
+  ORC_SSE_INSN_OPERAND_OP2_XMM        \
+)
+
+#define ORC_AVX_INSN_TYPE_SSEM_AVX (\
+  ORC_X86_INSN_OPERAND_REGM_REG     \
+), (                                \
+  ORC_SSE_INSN_OPERAND_OP1_XMM |    \
+  ORC_AVX_INSN_OPERAND_OP2_YMM      \
+)
+
 #define ORC_AVX_INSN_TYPE_SSEM_AVX_IMM8 (\
   ORC_X86_INSN_OPERAND_REGM_REG_IMM |    \
   ORC_X86_INSN_OPERAND_OP3_8             \
@@ -176,6 +234,16 @@ typedef enum _OrcAVXInsnOperandFlag {
   ORC_X86_INSN_OPERAND_OP3_32 |                 \
   ORC_X86_INSN_OPERAND_OP4_8 |                  \
   ORC_X86_INSN_OPERAND_MEM8                     \
+), (                                            \
+  ORC_SSE_INSN_OPERAND_OP1_XMM |                \
+  ORC_SSE_INSN_OPERAND_OP2_XMM                  \
+)
+
+#define ORC_AVX_INSN_TYPE_SSE_SSE_REG32M32_IMM8  (\
+  ORC_X86_INSN_OPERAND_REG_REG_REGM_IMM |       \
+  ORC_X86_INSN_OPERAND_OP3_32 |                 \
+  ORC_X86_INSN_OPERAND_OP4_8 |                  \
+  ORC_X86_INSN_OPERAND_MEM32                    \
 ), (                                            \
   ORC_SSE_INSN_OPERAND_OP1_XMM |                \
   ORC_SSE_INSN_OPERAND_OP2_XMM                  \

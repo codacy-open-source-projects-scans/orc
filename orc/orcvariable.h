@@ -89,6 +89,21 @@ typedef enum _OrcParamType {
   ORC_PARAM_TYPE_DOUBLE
 } OrcParamType;
 
+/**
+ * OrcVariableUpdateType:
+ *
+ * @ORC_VARIABLE_UPDATE_TYPE_NONE: No automatic update will be done, the rule implementation handles it
+ * @ORC_VARIABLE_UPDATE_TYPE_HALF: Automatic update will be done shifting half of the current shift
+ * @ORC_VARIABLE_UPDATE_TYPE_FULL: Automatic update will be done fully shifting to the current shift
+ *
+ * This enum defines how the #OrcCompiler should update an array variable
+ * after an unrolled loop iteration
+ */
+typedef enum _OrcVariableUpdateType {
+  ORC_VARIABLE_UPDATE_TYPE_NONE,
+  ORC_VARIABLE_UPDATE_TYPE_HALF,
+  ORC_VARIABLE_UPDATE_TYPE_FULL,
+} OrcVariableUpdateType;
 
 /**
  * OrcVariable:

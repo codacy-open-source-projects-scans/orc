@@ -19,6 +19,9 @@
 
 #include "orcinternal.h"
 
+#ifdef ENABLE_TARGET_AVX512
+#include <orc/avx512/orcavx512-private.h>
+#endif
 /**
  * SECTION:orc
  * @title: Orc
@@ -61,6 +64,9 @@ orc_init (void)
 #endif
 #ifdef ENABLE_TARGET_AVX
       orc_avx_init();
+#endif
+#ifdef ENABLE_TARGET_AVX512
+      orc_avx512_init();
 #endif
 #ifdef ENABLE_TARGET_ALTIVEC
       orc_powerpc_init();

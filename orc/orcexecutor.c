@@ -17,6 +17,41 @@
 
 #define CHUNK_SIZE 16
 
+static void
+orc_executor_dump_before (OrcExecutor *ex)
+{
+  int i;
+
+  ORC_LOG ("Executor before execution information");
+  ORC_LOG ("n: %d", ex->n);
+  ORC_LOG ("Executor variables:");
+  for (i = 0; i < ORC_N_VARIABLES; i++) {
+    if (!ex->arrays[i])
+      continue;
+
+    ORC_LOG (" %d: %p", i, ex->arrays[i]);
+  }
+  ORC_LOG ("Executor parameters:");
+  for (i = 0; i < ORC_N_VARIABLES; i++) {
+    if (!ex->params[i])
+      continue;
+
+    ORC_LOG (" %d: %d (%08x)", i, ex->params[i], ex->params[i]);
+  }
+  ORC_LOG ("Executor accumulators:");
+  for (i = 0; i < 4; i++)
+    ORC_LOG (" %d: %d (%08x)", i, ex->accumulators[i], ex->accumulators[i]);
+}
+
+static void
+orc_executor_dump_after (OrcExecutor *ex)
+{
+  ORC_LOG ("Executor after execution information");
+  ORC_LOG ("counter1: %d", ex->counter1);
+  ORC_LOG ("counter2: %d", ex->counter2);
+  ORC_LOG ("counter3: %d", ex->counter3);
+}
+
 OrcExecutor *
 orc_executor_new (OrcProgram *program)
 {
@@ -48,8 +83,9 @@ orc_executor_run (OrcExecutor *ex)
     func = code->exec;
   }
   if (func) {
+    orc_executor_dump_before (ex);
     func (ex);
-    /* ORC_ERROR("counters %d %d %d", ex->counter1, ex->counter2, ex->counter3); */
+    orc_executor_dump_after (ex);
   } else {
     orc_executor_emulate (ex);
   }
@@ -67,8 +103,9 @@ orc_executor_run_backup (OrcExecutor *ex)
     func = code->exec;
   }
   if (func) {
+    orc_executor_dump_before (ex);
     func (ex);
-    /* ORC_ERROR("counters %d %d %d", ex->counter1, ex->counter2, ex->counter3); */
+    orc_executor_dump_after (ex);
   } else {
     orc_executor_emulate (ex);
   }

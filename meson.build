@@ -36,7 +36,7 @@ if cc.has_link_argument('-Wl,-Bsymbolic-functions')
   add_project_link_arguments('-Wl,-Bsymbolic-functions', language : 'c')
 endif
 
-all_targets = ['avx', 'sse', 'mmx']
+all_targets = ['avx512', 'avx', 'sse', 'mmx']
 extra_targets = ['altivec', 'neon', 'mips', 'c64x', 'riscv', 'lsx', 'lasx'] # 'arm'
 enabled_targets = []
 
@@ -259,6 +259,7 @@ configure_file(output : 'config.h', configuration : cdata)
 
 # summary
 summary({
+  'AVX512': 'avx512' in enabled_targets,
   'AVX': 'avx' in enabled_targets,
   'SSE': 'sse' in enabled_targets,
   'MMX': 'mmx' in enabled_targets,

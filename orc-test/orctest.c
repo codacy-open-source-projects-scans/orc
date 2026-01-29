@@ -915,7 +915,7 @@ orc_test_compare_output_full_for_target (OrcProgram *program, int flags, const c
   if (program->constant_n > 0) {
     n = program->constant_n;
   } else {
-    n = 64 + (orc_random(&rand_context)&0xf);
+    n = 128 + (orc_random(&rand_context)&0xf);
   }
 
   ex = orc_executor_new (program);

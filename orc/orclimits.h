@@ -6,7 +6,7 @@
 
 ORC_BEGIN_DECLS
 
-#define ORC_N_REGS (32*4)
+#define ORC_N_REGS (48*4)
 #define ORC_N_INSNS 100
 #define ORC_N_VARIABLES 64
 #define ORC_N_ARRAYS 12

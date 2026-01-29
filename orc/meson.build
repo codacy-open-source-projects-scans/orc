@@ -143,6 +143,7 @@ orc_static_cargs = ['-DORC_STATIC_COMPILATION']
 
 subdir('riscv')
 subdir('loongarch')
+subdir('avx512')
 
 orc_lib = library ('orc-' + orc_api,
   orc_sources,

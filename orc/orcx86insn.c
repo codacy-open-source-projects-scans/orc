@@ -22,6 +22,9 @@
 #ifdef ENABLE_TARGET_AVX
 #include <orc/orcavx.h>
 #endif
+#ifdef ENABLE_TARGET_AVX512
+#include <orc/avx512/orcavx512.h>
+#endif
 
 #define X86_VEX_vvvv_UNUSED (0xF << 3)
 #define X86_VEX_vvvv_MASK (0xF << 3)
@@ -192,6 +195,12 @@ orc_x86_get_simd_regname (OrcX86Insn *xinsn, OrcCompiler *p, int reg, int idx)
     return orc_x86_get_regname_avx (reg);
   }
 #endif
+#if ENABLE_TARGET_AVX512
+  if ((reg >= ORC_AVX512_ZMM0 && reg < ORC_AVX512_ZMM0 + 32) ||
+      (reg >= ORC_AVX512_K0 && reg < ORC_AVX512_K0 + 8)) {
+    return orc_avx512_get_regname (reg);
+  }
+#endif
   ORC_COMPILER_ERROR (p, "Unknown reg %d for opcode %s at idx %d", reg, xinsn->name, idx);
   return "ERROR";
 }
@@ -220,6 +229,16 @@ orc_x86_get_regnum_full (int reg, int *regnum)
 #if ENABLE_TARGET_AVX
   if (reg >= X86_YMM0 && reg < X86_YMM0 + 16) {
     *regnum = reg - X86_YMM0;
+    return TRUE;
+  }
+#endif
+#if ENABLE_TARGET_AVX512
+  if (reg >= ORC_AVX512_ZMM0 && reg < ORC_AVX512_ZMM0 + 32) {
+    *regnum = reg - ORC_AVX512_ZMM0;
+    return TRUE;
+  }
+  if (reg >= ORC_AVX512_K0 && reg < ORC_AVX512_K0 + 8) {
+    *regnum = reg - ORC_AVX512_K0;
     return TRUE;
   }
 #endif

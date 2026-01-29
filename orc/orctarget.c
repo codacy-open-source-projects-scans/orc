@@ -49,6 +49,21 @@ orc_target_get_by_name (const char *name)
 }
 
 OrcTarget *
+orc_target_get_by_idx (int idx)
+{
+  if (idx < 0 || idx >= n_targets)
+    return NULL;
+
+  return targets[idx];
+}
+
+int
+orc_target_n_get (void)
+{
+  return n_targets;
+}
+
+OrcTarget *
 orc_target_get_default (void)
 {
   const char *envvar = _orc_getenv ("ORC_TARGET");
@@ -67,6 +82,13 @@ orc_target_get_default (void)
   }
 
   return default_target;
+}
+
+orc_bool
+orc_target_is_executable (OrcTarget *target)
+{
+  if (target == NULL) return FALSE;
+  return target->executable;
 }
 
 const char *
