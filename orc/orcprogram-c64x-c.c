@@ -8,6 +8,7 @@
 #include <orc/orcinternal.h>
 #include <orc/orcprogram.h>
 #include <orc/orcdebug.h>
+#include <orc/orcvariable.h>
 
 /* static const char *c_get_type_name (int size); */
 
@@ -176,24 +177,6 @@ get_align_var (OrcCompiler *compiler)
 
   ORC_COMPILER_ERROR(compiler, "could not find alignment variable");
 
-  return -1;
-}
-
-static int
-get_shift (int size)
-{
-  switch (size) {
-    case 1:
-      return 0;
-    case 2:
-      return 1;
-    case 4:
-      return 2;
-    case 8:
-      return 3;
-    default:
-      ORC_ERROR("bad size %d", size);
-  }
   return -1;
 }
 
@@ -372,8 +355,10 @@ orc_compiler_c64x_c_assemble (OrcCompiler *compiler)
     }
   }
   if (loop_shift > 0) {
+    int align_var_shift;
+    orc_variable_get_shift (&compiler->vars[align_var], &align_var_shift);
     ORC_ASM_CODE(compiler,"%*s  n1 = ((4 - (int)ptr%d)&0x3) >> %d;\n",
-        prefix, "", align_var, get_shift(compiler->vars[align_var].size));
+        prefix, "", align_var, align_var_shift);
     ORC_ASM_CODE(compiler,"%*s  n2 = (n - n1) >> %d;\n",
         prefix, "", loop_shift);
     ORC_ASM_CODE(compiler,"%*s  n3 = n & ((1 << %d) - 1);\n",

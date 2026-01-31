@@ -142,26 +142,6 @@ mmx_use_long_jumps (int flags)
   }
 }
 
-static int
-mmx_loop_shift (int max_var_size)
-{
-  switch (max_var_size) {
-    case 1:
-      return 3;
-    case 2:
-      return 2;
-    case 4:
-      return 1;
-    case 8:
-      return 0;
-    default:
-      ORC_ERROR ("unhandled max var size %d", max_var_size);
-      break;
-  }
-
-  return -1;
-}
-
 static void
 mmx_init_accumulator (OrcCompiler *compiler, OrcVariable *var)
 {
@@ -386,24 +366,6 @@ mmx_move_memoffset_to_register (OrcCompiler *compiler, int size, int offset, int
   orc_x86_emit_mov_memoffset_mmx (compiler, size, offset, reg1, reg2, is_aligned);
 }
 
-static int
-mmx_get_shift (int size)
-{
-  switch (size) {
-    case 1:
-      return 0;
-    case 2:
-      return 1;
-    case 4:
-      return 2;
-    case 8:
-      return 3;
-    default:
-      ORC_ERROR ("bad size %d", size);
-  }
-  return -1;
-}
-
 static void
 mmx_clear_emms(OrcCompiler *c)
 {
@@ -424,14 +386,12 @@ orc_mmx_init (void)
     mmx_is_64bit,
     mmx_use_frame_pointer,
     mmx_use_long_jumps,
-    mmx_loop_shift,
     mmx_init_accumulator,
     mmx_reduce_accumulator,
     NULL,
     orc_mmx_load_constant_long,
     mmx_move_register_to_memoffset,
     mmx_move_memoffset_to_register,
-    mmx_get_shift,
     NULL,
     NULL,
     mmx_clear_emms,

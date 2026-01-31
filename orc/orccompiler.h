@@ -93,6 +93,8 @@ ORC_API void  orc_compiler_load_constant_from_size_and_value (OrcCompiler *c,
     int reg, int size, orc_uint64 value);
 ORC_API const OrcVariable * orc_compiler_get_variable (OrcCompiler *c, OrcVariableId idx);
 
+ORC_API orc_bool orc_compiler_get_max_loop_shift (OrcCompiler *compiler, int *shift);
+
 #endif
 
 ORC_END_DECLS

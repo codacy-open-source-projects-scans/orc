@@ -53,6 +53,10 @@ static OrcTarget orc_lasx_target = {
   NULL,
   NULL,
   orc_loongarch_flush_cache,
+  NULL,
+  NULL,
+  { 0 },
+  32
 };
 
 OrcTarget *

@@ -33,6 +33,7 @@
 #include <orc/orcdebug.h>
 #include <orc/orcutils-private.h>
 #include <orc/orcinternal.h>
+#include <orc/orcvariable.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -516,22 +517,6 @@ get_align_var (OrcCompiler *compiler)
   return -1;
 }
 
-static int
-get_shift (int size)
-{
-  switch (size) {
-    case 1:
-      return 0;
-    case 2:
-      return 1;
-    case 4:
-      return 2;
-    default:
-      ORC_ERROR("bad size %d", size);
-  }
-  return -1;
-}
-
 /* alignment is a bit field. Each bit (from least significant) corresponds to a
  * dest or source variable in the order
  * ORC_VAR_D1-ORC_VAR_D4,ORC_VAR_S1-ORC_VAR_S8
@@ -655,7 +640,9 @@ orc_compiler_orc_mips_assemble (OrcCompiler *compiler)
   if (align_var < 0)
     return;
 
-  var_size_shift = get_shift (compiler->vars[align_var].size);
+  orc_variable_get_shift (&compiler->vars[align_var], &var_size_shift);
+  if (var_size_shift > 2)
+    ORC_ERROR ("variable size too large");
 
   stack_size = orc_mips_emit_prologue (compiler);
 

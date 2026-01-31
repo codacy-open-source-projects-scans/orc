@@ -140,26 +140,6 @@ avx_use_long_jumps (int flags)
   }
 }
 
-static int
-avx_loop_shift (int max_var_size)
-{
-  switch (max_var_size) {
-    case 1:
-      return 5;
-    case 2:
-      return 4;
-    case 4:
-      return 3;
-    case 8:
-      return 2;
-    default:
-      ORC_ERROR ("unhandled max var size %d", max_var_size);
-      break;
-  }
-
-  return -1;
-}
-
 static void
 avx_init_accumulator (OrcCompiler *compiler, OrcVariable *var)
 {
@@ -461,28 +441,6 @@ avx_zeroupper (OrcCompiler *compiler)
   orc_vex_emit_cpuinsn_none (compiler, ORC_AVX_vzeroupper);
 }
 
-static int
-avx_get_shift (int size)
-{
-  switch (size) {
-    case 1:
-      return 0;
-    case 2:
-      return 1;
-    case 4:
-      return 2;
-    case 8:
-      return 3;
-    case 16: // AVX2 shifts
-      return 4;
-    case 32:
-      return 5;
-    default:
-      ORC_ERROR ("bad size %d", size);
-  }
-  return -1;
-}
-
 static void
 avx_set_mxcsr (OrcCompiler *c)
 {
@@ -509,14 +467,12 @@ orc_avx_init (void)
     avx_is_64bit,
     avx_use_frame_pointer,
     avx_use_long_jumps,
-    avx_loop_shift,
     avx_init_accumulator,
     avx_reduce_accumulator,
     NULL,
     orc_avx_load_constant_long,
     avx_move_register_to_memoffset,
     avx_move_memoffset_to_register,
-    avx_get_shift,
     avx_set_mxcsr,
     avx_restore_mxcsr,
     NULL,

@@ -11,6 +11,7 @@
 #include <orc/orcx86insn.h>
 #include <orc/orcx86-private.h>
 #include <orc/orcinternal.h>
+#include <orc/orcvariable.h>
 
 #if defined(__APPLE__)
 #include  <libkern/OSCacheControl.h>
@@ -66,21 +67,9 @@ orc_x86_use_long_jumps (OrcX86Target *t, OrcCompiler *c)
 static void
 orc_x86_compiler_max_loop_shift (OrcX86Target *t, OrcCompiler *c)
 {
-  int i;
-  int n = 2;
-  const int max_elements = (t->register_size / c->max_var_size);
-
-  if (max_elements <= 1) {
-    // MMX fits just the one element
-    i = 0;
-  } else {
-    for (i = 1; i; i++) {
-      if (max_elements == n)
-        break;
-      n *= 2;
-    }
+  if (!orc_compiler_get_max_loop_shift (c, &c->loop_shift)) {
+    c->loop_shift = 0;
   }
-  c->loop_shift = i;
 }
 
 static void
@@ -428,27 +417,11 @@ orc_x86_get_max_alignment_var (OrcX86Target *t, OrcCompiler *c)
 }
 
 
-static int
-orc_x86_get_shift (OrcX86Target *t, int size)
-{
-  /* Get n for 2^n, taking into account the register size */
-  /* FIXME missing the get_shift code generalization, the SSE 
-   * case can handle until 8, but AVX until 32? */
-  return t->get_shift(size);
-}
-
-static inline orc_bool
-has_valid_alignment (const OrcVariable *var)
-{
-  return (var->alignment % var->size) == 0;
-}
-
 static inline orc_bool
 can_be_validly_aligned (const OrcVariable *var, const OrcX86Target *t)
 {
-  const orc_bool alignment_matches_register =
-      (var->alignment % t->register_size) == 0;
-  return alignment_matches_register && has_valid_alignment (var);
+  return orc_variable_has_valid_alignment (var, t->register_size) && 
+         orc_variable_has_valid_alignment (var, var->size);
 }
 
 static void
@@ -461,7 +434,7 @@ orc_x86_emit_split_3_regions (OrcX86Target *t, OrcCompiler *compiler)
   align_var = orc_x86_get_max_alignment_var (t, compiler);
   if (align_var < 0)
     return;
-  var_size_shift = orc_x86_get_shift (t, compiler->vars[align_var].size);
+  orc_variable_get_shift (&compiler->vars[align_var], &var_size_shift);
   align_shift = var_size_shift + compiler->loop_shift;
 
   /* determine how many iterations until align array is aligned (n1) */
@@ -533,7 +506,7 @@ orc_x86_emit_split_2_regions (OrcX86Target *t, OrcCompiler *compiler)
   align_var = orc_x86_get_max_alignment_var (t, compiler);
   if (align_var < 0)
     return;
-  var_size_shift = orc_x86_get_shift (t, compiler->vars[align_var].size);
+  orc_variable_get_shift (&compiler->vars[align_var], &var_size_shift);
   align_shift = var_size_shift + compiler->loop_shift;
 
   /* Calculate n2 */
@@ -699,8 +672,7 @@ get_optimised_instruction_order (OrcCompiler *compiler)
 }
 
 static void
-orc_x86_emit_loop (OrcX86Target *t, OrcCompiler *compiler, int offset,
-    int update)
+orc_x86_emit_loop (OrcX86Target *t, OrcCompiler *compiler, int update)
 {
   OrcInstruction *insn;
   OrcStaticOpcode *opcode;
@@ -1001,7 +973,7 @@ orc_x86_compile (OrcCompiler *compiler)
 
   is_aligned = compiler->vars[align_var].is_aligned;
   {
-    orc_x86_emit_loop (t, compiler, 0, 0);
+    orc_x86_emit_loop (t, compiler, 0);
 
     compiler->codeptr = compiler->code;
     free (compiler->asm_code);
@@ -1080,7 +1052,7 @@ orc_x86_compile (OrcCompiler *compiler)
     save_loop_shift = compiler->loop_shift;
     while (n_left >= (1 << compiler->loop_shift)) {
       orc_x86_emit_cpuinsn_comment (compiler, "# AVX LOOP SHIFT %d", compiler->loop_shift);
-      orc_x86_emit_loop (t, compiler, compiler->offset, 0);
+      orc_x86_emit_loop (t, compiler, 0);
 
       n_left -= 1 << compiler->loop_shift;
       compiler->offset += 1 << compiler->loop_shift;
@@ -1089,7 +1061,7 @@ orc_x86_compile (OrcCompiler *compiler)
       if (n_left >= (1 << loop_shift)) {
         compiler->loop_shift = loop_shift;
         orc_x86_emit_cpuinsn_comment (compiler, "# AVX LOOP SHIFT %d", loop_shift);
-        orc_x86_emit_loop (t, compiler, compiler->offset, 0);
+        orc_x86_emit_loop (t, compiler, 0);
         n_left -= 1 << loop_shift;
         compiler->offset += 1 << loop_shift;
       }
@@ -1123,13 +1095,13 @@ orc_x86_compile (OrcCompiler *compiler)
         orc_x86_emit_test_imm_memoffset (compiler, 4, 1 << compiler->loop_shift,
             (int)ORC_STRUCT_OFFSET (OrcExecutor, counter1), compiler->exec_reg);
         orc_x86_emit_je (compiler, LABEL_STEP_UP (compiler->loop_shift));
-        orc_x86_emit_loop (t, compiler, 0, 1 << compiler->loop_shift);
+        orc_x86_emit_loop (t, compiler, 1 << compiler->loop_shift);
         orc_x86_emit_label (compiler, LABEL_STEP_UP (compiler->loop_shift));
       }
 
       compiler->loop_shift = save_loop_shift;
       /* Consider as aligned only if the alignment allows so */
-      compiler->vars[align_var].is_aligned = has_valid_alignment (&compiler->vars[align_var]);
+      compiler->vars[align_var].is_aligned = orc_variable_has_valid_alignment (&compiler->vars[align_var], compiler->vars[align_var].size);
     }
 
     orc_x86_emit_label (compiler, LABEL_REGION1_SKIP);
@@ -1152,7 +1124,7 @@ orc_x86_compile (OrcCompiler *compiler)
     ui_max = 1 << compiler->unroll_shift;
     for (ui = 0; ui < ui_max; ui++) {
       compiler->offset = ui << compiler->loop_shift;
-      orc_x86_emit_loop (t, compiler, compiler->offset,
+      orc_x86_emit_loop (t, compiler,
           (ui == ui_max - 1)
               << (compiler->loop_shift + compiler->unroll_shift));
     }
@@ -1180,7 +1152,7 @@ orc_x86_compile (OrcCompiler *compiler)
         orc_x86_emit_test_imm_memoffset (compiler, 4, 1 << compiler->loop_shift,
             (int)ORC_STRUCT_OFFSET (OrcExecutor, counter3), compiler->exec_reg);
         orc_x86_emit_je (compiler, LABEL_STEP_DOWN (compiler->loop_shift));
-        orc_x86_emit_loop (t, compiler, 0, 1 << compiler->loop_shift);
+        orc_x86_emit_loop (t, compiler, 1 << compiler->loop_shift);
         orc_x86_emit_label (compiler, LABEL_STEP_DOWN (compiler->loop_shift));
       }
 

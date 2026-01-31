@@ -43,7 +43,6 @@ ORC_INTERNAL void orc_neon_emit_loop_common (OrcCompiler *compiler, int unroll_i
 ORC_INTERNAL void orc_neon_compiler_init_common (OrcCompiler *compiler);
 ORC_INTERNAL enum RegionFlags orc_compiler_neon_calc_regions (const OrcCompiler *compiler);
 ORC_INTERNAL unsigned int orc_neon_get_callee_saved_regs (const OrcCompiler *compiler, int base, int n);
-ORC_INTERNAL int orc_neon_get_shift (int size);
 ORC_INTERNAL int orc_neon_get_align_var (OrcCompiler *compiler);
 
 typedef struct _NeonInsn {

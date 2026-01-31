@@ -11,6 +11,7 @@
 #include <orc/orcutils.h>
 #include <orc/orcdebug.h>
 #include <orc/orcinternal.h>
+#include <orc/orcvariable.h>
 
 #include <orc/orcneon.h>
 #include <orc/orcneon-private.h>
@@ -436,7 +437,7 @@ orc_neon64_set_region_counters (OrcCompiler *compiler)
 
   align_var = orc_neon_get_align_var (compiler);
   if (compiler->error) return;
-  var_size_shift = orc_neon_get_shift (compiler->vars[align_var].size);
+  orc_variable_get_shift (&compiler->vars[align_var], &var_size_shift);
 
   /** IP0 = 1 << align_shift */
   orc_arm64_emit_mov_imm (compiler, 32, ORC_ARM64_IP0, 1<<align_shift);
@@ -507,7 +508,7 @@ orc_neon64_loop_caches (OrcCompiler *compiler)
 
   align_var = orc_neon_get_align_var (compiler);
   if (compiler->error) return;
-  var_size_shift = orc_neon_get_shift (compiler->vars[align_var].size);
+  orc_variable_get_shift (&compiler->vars[align_var], &var_size_shift);
 
   /** if IP0 == 0, go to LABEL_REGION2_SKIP */
   orc_arm64_emit_cmp_imm (compiler, 32, ORC_ARM64_IP0, 0);

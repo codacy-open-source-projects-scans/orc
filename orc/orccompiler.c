@@ -777,6 +777,52 @@ orc_compiler_check_sizes (OrcCompiler *compiler)
   compiler->max_var_size = max_size;
 }
 
+/**
+ * orc_compiler_get_max_loop_shift:
+ * @compiler: The OrcCompiler instance
+ * @shift: Output parameter for the calculated shift value
+ *
+ * Calculate the maximum loop shift based on how many elements of the
+ * maximum variable size can fit in a SIMD register.
+ *
+ * This calculates loop_shift = log2(register_size / max_var_size), which
+ * determines how many elements can be processed per iteration:
+ * elements_per_iteration = 2^loop_shift = register_size / max_var_size
+ *
+ * Returns: #TRUE if the operation succeeds, #FALSE otherwise
+ */
+orc_bool
+orc_compiler_get_max_loop_shift (OrcCompiler *compiler, int *shift)
+{
+  int n = 2;
+  int i;
+  const int register_size = compiler->target->register_size;
+  const int var_size = compiler->max_var_size;
+  const int max_elements = register_size / var_size;
+
+  if (var_size <= 0 || register_size <= 0) {
+    ORC_ERROR ("Invalid sizes: var_size=%d, register_size=%d", var_size, register_size);
+    return FALSE;
+  }
+
+  if (max_elements <= 1) {
+    *shift = 0;
+    return TRUE;
+  }
+
+  for (i = 1; i < 32; i++) {  /* Safety limit: 2^32 = 4GB elements */
+    if (max_elements == n) {
+      *shift = i;
+      return TRUE;
+    }
+    n *= 2;
+  }
+
+  ORC_ERROR ("Invalid configuration: register_size=%d not cleanly divisible by var_size=%d",
+            register_size, var_size);
+  return FALSE;
+}
+
 static OrcStaticOpcode *
 get_load_opcode_for_size (int size)
 {
@@ -1804,7 +1850,7 @@ orc_compiler_emit_invariants (OrcCompiler *compiler)
 const OrcVariable *
 orc_compiler_get_variable (OrcCompiler *c, OrcVariableId idx)
 {
-  if (idx < 0 || idx > ORC_N_VARIABLES)
+  if (idx < 0 || idx >= ORC_N_COMPILER_VARIABLES)
     return NULL;
   return &c->vars[idx];
 }

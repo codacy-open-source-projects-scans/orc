@@ -146,22 +146,8 @@ orc_lsx_compiler_emit_epilogue (OrcCompiler *c)
 void
 orc_lsx_compiler_compute_loop_shift (OrcCompiler *c)
 {
-  switch (c->max_var_size) {
-    case 1:
-      c->loop_shift = 4;
-      break;
-    case 2:
-      c->loop_shift = 3;
-      break;
-    case 4:
-      c->loop_shift = 2;
-      break;
-    case 8:
-      c->loop_shift = 1;
-      break;
-    default:
-      ORC_ERROR ("unhandled max var size %d", c->max_var_size);
-      break;
+  if (!orc_compiler_get_max_loop_shift (c, &c->loop_shift)) {
+    ORC_ERROR ("unhandled max var size %d", c->max_var_size);
   }
 }
 

@@ -11,6 +11,7 @@
 #include <orc/orcutils.h>
 #include <orc/orcdebug.h>
 #include <orc/orcinternal.h>
+#include <orc/orcvariable.h>
 
 #include <orc/orcneon.h>
 #include <orc/orcneon-private.h>
@@ -84,7 +85,7 @@ orc_neon32_compile (OrcCompiler *compiler)
   align_var = orc_neon_get_align_var (compiler);
   if (compiler->error) return;
 
-  var_size_shift = orc_neon_get_shift (compiler->vars[align_var].size);
+  orc_variable_get_shift (&compiler->vars[align_var], &var_size_shift);
   align_shift = 4;
 
   compiler->vars[align_var].is_aligned = FALSE;

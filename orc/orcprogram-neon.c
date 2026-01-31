@@ -52,7 +52,11 @@ static OrcTarget neon_target = {
   NULL,
   NULL,
   NULL,
-  orc_arm_flush_cache
+  orc_arm_flush_cache,
+  NULL,
+  NULL,
+  { 0 },
+  16
 };
 
 void
@@ -144,24 +148,13 @@ orc_neon_compiler_init_common (OrcCompiler *compiler)
   compiler->valid_regs[compiler->tmpreg2] = 0;
 
   loop_shift = 0;
-  switch (compiler->max_var_size) {
-    case 1:
-      compiler->loop_shift = 4;
-      break;
-    case 2:
-      compiler->loop_shift = 3;
-      break;
-    case 4:
-      compiler->loop_shift = 2;
-      break;
-    case 8:
-      compiler->loop_shift = 1;
-      break;
-    default:
-      ORC_ERROR("unhandled max var size %d", compiler->max_var_size);
-      break;
+  
+  /* Calculate initial loop_shift based on max_var_size */
+  if (!orc_compiler_get_max_loop_shift (compiler, &compiler->loop_shift)) {
+    ORC_ERROR("unhandled max var size %d", compiler->max_var_size);
   }
 
+  /* Constrain by max_array_size */
   switch (orc_program_get_max_array_size (compiler->program)) {
     case 0:
     case 1:
@@ -340,24 +333,6 @@ orc_neon_emit_store_dest (OrcCompiler *compiler, OrcVariable *var)
   }
 }
 #endif
-
-int
-orc_neon_get_shift (int size)
-{
-  switch (size) {
-    case 1:
-      return 0;
-    case 2:
-      return 1;
-    case 4:
-      return 2;
-    case 8:
-      return 3;
-    default:
-      ORC_ERROR("bad size %d", size);
-  }
-  return -1;
-}
 
 int
 orc_neon_get_align_var (OrcCompiler *compiler)

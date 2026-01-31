@@ -143,26 +143,6 @@ sse_use_long_jumps (int flags)
   }
 }
 
-static int
-sse_loop_shift (int max_var_size)
-{
-  switch (max_var_size) {
-    case 1:
-      return 4;
-    case 2:
-      return 3;
-    case 4:
-      return 2;
-    case 8:
-      return 1;
-    default:
-      ORC_ERROR ("unhandled max var size %d", max_var_size);
-      break;
-  }
-
-  return -1;
-}
-
 static void
 sse_init_accumulator (OrcCompiler *compiler, OrcVariable *var)
 {
@@ -475,24 +455,6 @@ sse_move_memoffset_to_register (OrcCompiler *compiler, int size, int offset, int
   orc_x86_emit_mov_memoffset_sse (compiler, size, offset, reg1, reg2, is_aligned);
 }
 
-static int
-sse_get_shift (int size)
-{
-  switch (size) {
-    case 1:
-      return 0;
-    case 2:
-      return 1;
-    case 4:
-      return 2;
-    case 8:
-      return 3;
-    default:
-      ORC_ERROR ("bad size %d", size);
-  }
-  return -1;
-}
-
 static void
 sse_set_mxcsr (OrcCompiler *c)
 {
@@ -519,14 +481,12 @@ orc_sse_init (void)
     sse_is_64bit,
     sse_use_frame_pointer,
     sse_use_long_jumps,
-    sse_loop_shift,
     sse_init_accumulator,
     sse_reduce_accumulator,
     NULL,
     orc_sse_load_constant_long,
     sse_move_register_to_memoffset,
     sse_move_memoffset_to_register,
-    sse_get_shift,
     sse_set_mxcsr,
     sse_restore_mxcsr,
     NULL,
