@@ -64,13 +64,15 @@ orc_lasx_compiler_init (OrcCompiler *c)
   c->valid_regs[ORC_LOONG_T2] = 0;
   c->valid_regs[ORC_LOONG_T3] = 0;
 
-  c->tmpreg = ORC_LOONG_XR0;
   c->gp_tmpreg = ORC_LOONG_T0;
-  c->valid_regs[c->tmpreg] = 0;
   c->valid_regs[c->gp_tmpreg] = 0;
 
   c->exec_reg = ORC_LOONG_A0;
   c->valid_regs[c->exec_reg] = 0;
+
+  /* used by NORMALIZE_SRC_ARG */
+  c->valid_regs[ORC_LOONG_XR22] = 0;
+  c->valid_regs[ORC_LOONG_XR23] = 0;
 
   /* r23 to r31 are callee-saved */
   for (i = 23; i < 32; i++) {
@@ -86,6 +88,8 @@ orc_lasx_compiler_init (OrcCompiler *c)
   if (c->n_insns <= 10) {
     c->unroll_shift = 1;
   }
+
+  c->min_temp_reg = ORC_VEC_REG_BASE;
 
   c->load_params = TRUE;
 }
@@ -110,7 +114,7 @@ orc_lasx_compiler_emit_prologue (OrcCompiler *c)
   for (int i = 0; i < 32; i++) {
     if (c->used_regs[ORC_GP_REG_BASE + i] && c->save_regs[ORC_GP_REG_BASE + i]) {
       stack_size += 8;
-      orc_loongarch_insn_emit_st_d (c, ORC_LOONG_SP, ORC_GP_REG_BASE + i, -stack_size);
+      orc_loongarch_insn_emit_st_d (c, ORC_GP_REG_BASE + i, ORC_LOONG_SP, -stack_size);
     }
   }
 
@@ -131,16 +135,17 @@ orc_lasx_compiler_emit_epilogue (OrcCompiler *c)
 {
   int stack_size = 0;
 
+  /* Vector registers should be restored first if used. */
   for (int i = 31; i >= 0; i--) {
-    if (c->used_regs[ORC_GP_REG_BASE + i] && c->save_regs[ORC_GP_REG_BASE + i]) {
-      orc_loongarch_insn_emit_ld_d (c, ORC_GP_REG_BASE + i, ORC_LOONG_SP, stack_size);
+    if (c->used_regs[ORC_VEC_REG_BASE + 32 + i] && c->save_regs[ORC_VEC_REG_BASE + 32 + i]) {
+      orc_lasx_insn_emit_xvldrepld (c, ORC_VEC_REG_BASE + 32 + i, ORC_LOONG_SP, stack_size);
       stack_size += 8;
     }
   }
 
   for (int i = 31; i >= 0; i--) {
-    if (c->used_regs[ORC_VEC_REG_BASE + 32 + i] && c->save_regs[ORC_VEC_REG_BASE + 32 + i]) {
-      orc_lasx_insn_emit_xvldrepld (c, ORC_GP_REG_BASE + 32 + i, ORC_LOONG_SP, stack_size);
+    if (c->used_regs[ORC_GP_REG_BASE + i] && c->save_regs[ORC_GP_REG_BASE + i]) {
+      orc_loongarch_insn_emit_ld_d (c, ORC_GP_REG_BASE + i, ORC_LOONG_SP, stack_size);
       stack_size += 8;
     }
   }
@@ -180,11 +185,12 @@ orc_lasx_compiler_save_accumulators (OrcCompiler *c)
 {
   for (int i = 0; i < ORC_N_COMPILER_VARIABLES; i++) {
     if (c->vars[i].vartype == ORC_VAR_TYPE_ACCUMULATOR) {
-      const OrcLoongRegister reg = c->vars[i].alloc;
-      const OrcLoongRegister low_reg = ORC_LOONG_VR0;
+      const int reg = c->vars[i].alloc;
       const int offset = ORC_STRUCT_OFFSET (OrcExecutor, accumulators[i - ORC_VAR_A1]);
+      const int tmp0 = orc_compiler_get_temp_reg (c);
+      const int low_reg = tmp0 - 32;
       orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, c->exec_reg, offset);
-      orc_lasx_insn_emit_xvpermiq (c, c->tmpreg, reg, 0x1);
+      orc_lasx_insn_emit_xvpermiq (c, tmp0, reg, 0x1);
       if (c->vars[i].size == 2) {
         orc_lsx_insn_emit_vaddh (c, low_reg, reg - 32, low_reg);
         orc_lsx_insn_emit_vhaddwwh (c, low_reg, low_reg, low_reg);
@@ -198,6 +204,7 @@ orc_lasx_compiler_save_accumulators (OrcCompiler *c)
         orc_lsx_insn_emit_vhaddwqudu (c, low_reg, low_reg, low_reg);
         orc_lsx_insn_emit_vstelmw (c, low_reg, c->gp_tmpreg, 0, 0);
       }
+      orc_compiler_release_temp_reg (c, tmp0);
     }
   }
 }

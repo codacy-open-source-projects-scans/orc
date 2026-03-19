@@ -35,7 +35,7 @@
 #include <orc/orcinternal.h>
 
 #define NORMALIZE_SRC_ARG(c, insn, arg, element_width) \
-  orc_lsx_insn_emit_normalize(c, ORC_SRC_ARG (c, insn, arg), ORC_LOONG_VR10 + arg, element_width)
+  orc_lsx_insn_emit_normalize(c, ORC_SRC_ARG (c, insn, arg), ORC_LOONG_VR22 + arg, element_width)
 
 static void
 orc_lsx_rule_loadpX (OrcCompiler *c, void *user, OrcInstruction *insn)
@@ -67,11 +67,12 @@ orc_lsx_rule_loadpX (OrcCompiler *c, void *user, OrcInstruction *insn)
     } else if (size == 4) {
       orc_lsx_insn_emit_vldreplw (c, dest->alloc, c->exec_reg, offset);
     } else if (size == 8) {
-      const OrcLoongRegister t0 = ORC_LOONG_VR4;
+      const int t0 = orc_compiler_get_temp_reg (c);
       int offset1 = ORC_STRUCT_OFFSET (OrcExecutor, params[insn->src_args[0]+(ORC_N_PARAMS)]);
       orc_lsx_insn_emit_vldreplw (c, t0, c->exec_reg, offset);
       orc_lsx_insn_emit_vldreplw (c, dest->alloc, c->exec_reg, offset1);
       orc_lsx_insn_emit_vilvlw (c, dest->alloc, dest->alloc, t0);
+      orc_compiler_release_temp_reg (c, t0);
     } else {
       ORC_PROGRAM_ERROR(c, "unimplemented");
     }
@@ -524,9 +525,10 @@ orc_lsx_rule_maxuX (OrcCompiler *c, void *user, OrcInstruction *insn)
 static void
 orc_lsx_rule_absX (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0;
   const int src = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
 
   int size = ORC_PTR_TO_INT (user);
 
@@ -544,6 +546,8 @@ orc_lsx_rule_absX (OrcCompiler *c, void *user, OrcInstruction *insn)
       orc_lsx_insn_emit_vabsdw (c, dest, tmp1, src);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -593,23 +597,26 @@ orc_lsx_rule_avguX (OrcCompiler *c, void *user, OrcInstruction *insn)
 static void
 orc_lsx_rule_div255w (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0;
-
   const int src = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
 
   orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 255);
   orc_lsx_insn_emit_vreplgr2vrh (c, tmp1, c->gp_tmpreg);
   orc_lsx_insn_emit_vdivhu (c, dest, src, tmp1);
+
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
 orc_lsx_rule_signX (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0;
-
   const int src = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   int size = ORC_PTR_TO_INT (user);
 
   switch (size) {
@@ -629,18 +636,20 @@ orc_lsx_rule_signX (OrcCompiler *c, void *user, OrcInstruction *insn)
       orc_lsx_insn_emit_vsigncovw (c, dest, src, tmp1);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
 orc_lsx_rule_divluw (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0;
-  const OrcLoongRegister zero = ORC_LOONG_VR4;
-  const OrcLoongRegister mask = ORC_LOONG_VR5;
-
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int src2 = ORC_SRC_ARG (c, insn, 1);
   const int dest = ORC_DEST_ARG (c, insn, 0);
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int zero = orc_compiler_get_temp_reg (c);
+  const int mask = orc_compiler_get_temp_reg (c);
 
   orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 255);
   orc_lsx_insn_emit_vreplgr2vrh (c, tmp1, c->gp_tmpreg);
@@ -652,6 +661,10 @@ orc_lsx_rule_divluw (OrcCompiler *c, void *user, OrcInstruction *insn)
   orc_lsx_insn_emit_vandnv (c, dest, mask, dest);
   orc_lsx_insn_emit_vaddh (c, dest, dest, mask);
   orc_lsx_insn_emit_vminhu (c, dest, tmp1, dest);
+
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, zero);
+  orc_compiler_release_temp_reg (c, mask);
 }
 
 static void
@@ -682,7 +695,9 @@ orc_lsx_rule_mulsX (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int src2 = ORC_SRC_ARG (c, insn, 1);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0, tmp2 = ORC_LOONG_VR4;
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
 
   int size = ORC_PTR_TO_INT (user);
 
@@ -703,6 +718,9 @@ orc_lsx_rule_mulsX (OrcCompiler *c, void *user, OrcInstruction *insn)
       orc_lsx_insn_emit_vmuld (c, dest, tmp1, tmp2);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 static void
@@ -755,7 +773,9 @@ orc_lsx_rule_muluX (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int src2 = ORC_SRC_ARG (c, insn, 1);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0, tmp2 = ORC_LOONG_VR4;
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
 
   int size = ORC_PTR_TO_INT (user);
 
@@ -776,6 +796,9 @@ orc_lsx_rule_muluX (OrcCompiler *c, void *user, OrcInstruction *insn)
       orc_lsx_insn_emit_vmuld (c, dest, tmp1, tmp2);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 static void
@@ -811,11 +834,12 @@ orc_lsx_rule_accX (OrcCompiler *c, void *user, OrcInstruction *insn)
 static void
 orc_lsx_rule_accsadubl (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0, tmp2 = ORC_LOONG_VR4;
-
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int src2 = ORC_SRC_ARG (c, insn, 1);
   const int dest = ORC_DEST_ARG (c, insn, 0);
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
 
   orc_lsx_insn_emit_vsllwilhubu (c, tmp1, src1, 0);
   orc_lsx_insn_emit_vsllwilhubu (c, tmp2, src2, 0);
@@ -828,6 +852,9 @@ orc_lsx_rule_accsadubl (OrcCompiler *c, void *user, OrcInstruction *insn)
     orc_lsx_insn_emit_vbsllv (c, tmp1, tmp1, 8);
   }
   orc_lsx_insn_emit_vsaddwu (c, dest, dest, tmp1);
+
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 static void
@@ -997,14 +1024,16 @@ orc_lsx_rule_select1ql (OrcCompiler *c, void *user, OrcInstruction *insn)
 static void
 orc_lsx_rule_splatw3q (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0;
-
   const int src = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
 
   orc_lsx_insn_emit_vreplveih (c, tmp1, src, 3);
   orc_lsx_insn_emit_vreplveih (c, dest, src, 7);
   orc_lsx_insn_emit_vilvld(c, dest, dest, tmp1);
+
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1055,10 +1084,13 @@ orc_lsx_rule_splitql (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest1 = ORC_DEST_ARG (c, insn, 0);
   const int dest2 = ORC_DEST_ARG (c, insn, 1);
 
-  const int zero = c->tmpreg;
+  const int zero = orc_compiler_get_temp_reg (c);
+
   orc_lsx_insn_emit_vxorv (c,zero, zero, zero);
   orc_lsx_insn_emit_vpickodw (c, dest1, zero, src);
   orc_lsx_insn_emit_vpickevw (c, dest2, zero, src);
+
+  orc_compiler_release_temp_reg (c, zero);
 }
 
 static void
@@ -1804,9 +1836,10 @@ orc_lsx_rule_minf (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 4);
   const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 4);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-  const OrcLoongRegister t0 = ORC_LOONG_VR4;
-  const OrcLoongRegister t1 = ORC_LOONG_VR5;
-  const OrcLoongRegister t2 = ORC_LOONG_VR6;
+
+  const int t0 = orc_compiler_get_temp_reg (c);
+  const int t1 = orc_compiler_get_temp_reg (c);
+  const int t2 = orc_compiler_get_temp_reg (c);
 
   orc_lsx_insn_emit_vfmins (c, t0, src1, src2);
   orc_lsx_insn_emit_vfcmpcuns (c, t1, src1, src1);
@@ -1814,6 +1847,10 @@ orc_lsx_rule_minf (OrcCompiler *c, void *user, OrcInstruction *insn)
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src1, t1);
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src2, t2);
   orc_lsx_insn_emit_normalize (c, t0, dest, 4);
+
+  orc_compiler_release_temp_reg (c, t0);
+  orc_compiler_release_temp_reg (c, t1);
+  orc_compiler_release_temp_reg (c, t2);
 }
 
 static void
@@ -1822,9 +1859,10 @@ orc_lsx_rule_mind (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 8);
   const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 8);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-  const OrcLoongRegister t0 = ORC_LOONG_VR4;
-  const OrcLoongRegister t1 = ORC_LOONG_VR5;
-  const OrcLoongRegister t2 = ORC_LOONG_VR6;
+
+  const int t0 = orc_compiler_get_temp_reg (c);
+  const int t1 = orc_compiler_get_temp_reg (c);
+  const int t2 = orc_compiler_get_temp_reg (c);
 
   orc_lsx_insn_emit_vfmind (c, t0, src1, src2);
   orc_lsx_insn_emit_vfcmpcund (c, t1, src1, src1);
@@ -1832,6 +1870,10 @@ orc_lsx_rule_mind (OrcCompiler *c, void *user, OrcInstruction *insn)
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src1, t1);
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src2, t2);
   orc_lsx_insn_emit_normalize (c, t0, dest, 8);
+
+  orc_compiler_release_temp_reg (c, t0);
+  orc_compiler_release_temp_reg (c, t1);
+  orc_compiler_release_temp_reg (c, t2);
 }
 
 static void
@@ -1840,9 +1882,10 @@ orc_lsx_rule_maxf (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 4);
   const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 4);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-  const OrcLoongRegister t0 = ORC_LOONG_VR4;
-  const OrcLoongRegister t1 = ORC_LOONG_VR5;
-  const OrcLoongRegister t2 = ORC_LOONG_VR6;
+
+  const int t0 = orc_compiler_get_temp_reg (c);
+  const int t1 = orc_compiler_get_temp_reg (c);
+  const int t2 = orc_compiler_get_temp_reg (c);
 
   orc_lsx_insn_emit_vfmaxs (c, t0, src1, src2);
   orc_lsx_insn_emit_vfcmpcuns (c, t1, src1, src1);
@@ -1850,6 +1893,10 @@ orc_lsx_rule_maxf (OrcCompiler *c, void *user, OrcInstruction *insn)
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src1, t1);
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src2, t2);
   orc_lsx_insn_emit_normalize (c, t0, dest, 4);
+
+  orc_compiler_release_temp_reg (c, t0);
+  orc_compiler_release_temp_reg (c, t1);
+  orc_compiler_release_temp_reg (c, t2);
 }
 
 static void
@@ -1858,9 +1905,11 @@ orc_lsx_rule_maxd (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 8);
   const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 8);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-  const OrcLoongRegister t0 = ORC_LOONG_VR4;
-  const OrcLoongRegister t1 = ORC_LOONG_VR5;
-  const OrcLoongRegister t2 = ORC_LOONG_VR6;
+
+
+  const int t0 = orc_compiler_get_temp_reg (c);
+  const int t1 = orc_compiler_get_temp_reg (c);
+  const int t2 = orc_compiler_get_temp_reg (c);
 
   orc_lsx_insn_emit_vfmaxd (c, t0, src1, src2);
   orc_lsx_insn_emit_vfcmpcund (c, t1, src1, src1);
@@ -1868,6 +1917,10 @@ orc_lsx_rule_maxd (OrcCompiler *c, void *user, OrcInstruction *insn)
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src1, t1);
   orc_lsx_insn_emit_vbitselv (c, t0, t0, src2, t2);
   orc_lsx_insn_emit_normalize (c, t0, dest, 8);
+
+  orc_compiler_release_temp_reg (c, t0);
+  orc_compiler_release_temp_reg (c, t1);
+  orc_compiler_release_temp_reg (c, t2);
 }
 
 #define REG(opcode, rule, size) \

@@ -1423,7 +1423,7 @@ orc_lasx_insn_emit_xvstelmb (OrcCompiler *c,
     OrcLoongRegister xd, OrcLoongRegister xj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  xvstelm.b %s, %s, %d, %d\n", NAME (xd), NAME (xj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMB, XREG(xd), GREG(xj), 0b0011000111000000000000 | (idx << 9 ) | si8));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMB, XREG(xd), GREG(xj), (1 << 13) | (idx << 8 ) | (si8 & 0xff)));
 }
 
 void
@@ -1431,7 +1431,7 @@ orc_lasx_insn_emit_xvstelmh (OrcCompiler *c,
     OrcLoongRegister xd, OrcLoongRegister xj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  xvstelm.h %s, %s, %d, %d\n", NAME (xd), NAME (xj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMH, XREG(xd), GREG(xj), 0b0011000110100000000000 | (idx << 9 ) | si8));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMH, XREG(xd), GREG(xj), (1 << 12) | (idx << 8 ) | ((si8 >> 1) & 0xff)));
 }
 
 void
@@ -1439,7 +1439,7 @@ orc_lasx_insn_emit_xvstelmw (OrcCompiler *c,
     OrcLoongRegister xd, OrcLoongRegister xj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  xvstelm.w %s, %s, %d, %d\n", NAME (xd), NAME (xj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMW, XREG(xd), GREG(xj), 0b0011000110010000000000 | (idx << 9 ) | si8));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMW, XREG(xd), GREG(xj), (1 << 11) | (idx << 8 ) | ((si8 >> 2) & 0xff)));
 }
 
 void
@@ -1447,7 +1447,7 @@ orc_lasx_insn_emit_xvstelmd (OrcCompiler *c,
     OrcLoongRegister xd, OrcLoongRegister xj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  xvstelm.d %s, %s, %d, %d\n", NAME (xd), NAME (xj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMD, XREG(xd), GREG(xj), 0b0011000110001000000000 | (idx << 9 ) | si8));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_XVSTELMD, XREG(xd), GREG(xj), (1 << 10) | (idx << 8 ) | ((si8 >> 3) & 0xff)));
 }
 
 void
@@ -1794,7 +1794,9 @@ orc_lasx_insn_emit_flush_subnormals (OrcCompiler *c, int element_width,
       element_width ==
       4 ? 0xff800000 : ORC_UINT64_C (0xfff) << 52;
   const orc_uint64 exponent = upper & (upper >> 1);
-  const OrcLoongRegister tmp1 = ORC_LOONG_XR0, tmp2 = ORC_LOONG_XR15;
+
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
 
   orc_loongarch_insn_emit_load_imm (c, c->gp_tmpreg, exponent);
 
@@ -1822,6 +1824,9 @@ orc_lasx_insn_emit_flush_subnormals (OrcCompiler *c, int element_width,
     orc_lasx_insn_emit_xvandv (c, tmp2, tmp2, xs);
     orc_lasx_insn_emit_xvbitselv (c, xd, xd, tmp2, tmp1);
   }
+
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 OrcLoongRegister

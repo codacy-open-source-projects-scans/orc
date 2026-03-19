@@ -158,6 +158,8 @@ orc_loongarch_compiler_emit_loop (OrcCompiler *c, int update)
   for (int i = 0; i < c->n_insns; i++) {
     OrcInstruction *insn = c->insns + i;
 
+    c->insn_index = i;
+
     if (insn->flags & ORC_INSN_FLAG_INVARIANT)
       continue;
 

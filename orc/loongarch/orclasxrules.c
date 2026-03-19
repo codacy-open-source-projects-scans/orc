@@ -41,10 +41,10 @@
 #define ORC_LSX_TO_LASX_REG(i) (ORC_LOONG_XR0 + (i - ORC_LOONG_VR0))
 
 #define NORMALIZE_SRC_ARG(c, insn, arg, element_width) \
-  orc_lasx_insn_emit_normalize(c, ORC_SRC_ARG (c, insn, arg), ORC_LOONG_XR10 + arg, element_width)
+  orc_lasx_insn_emit_normalize(c, ORC_SRC_ARG (c, insn, arg), ORC_LOONG_XR22 + arg, element_width)
 
 #define NORMALIZE_SRC_ARG1(c, insn, arg, element_width) \
-  orc_lsx_insn_emit_normalize(c, ORC_LASX_TO_LSX_REG(ORC_SRC_ARG (c, insn, arg)), ORC_LOONG_VR10 + arg, element_width)
+  orc_lsx_insn_emit_normalize(c, ORC_LASX_TO_LSX_REG(ORC_SRC_ARG (c, insn, arg)), ORC_LOONG_VR22 + arg, element_width)
 
 static void
 orc_lasx_rule_loadpX (OrcCompiler *c, void *user, OrcInstruction *insn)
@@ -77,11 +77,12 @@ orc_lasx_rule_loadpX (OrcCompiler *c, void *user, OrcInstruction *insn)
     } else if (size == 4) {
       orc_lasx_insn_emit_xvldreplw (c, dest->alloc, c->exec_reg, offset);
     } else if (size == 8) {
-      const OrcLoongRegister t0 = ORC_LOONG_XR4;
+      const int t0 = orc_compiler_get_temp_reg (c);
       int offset1 = ORC_STRUCT_OFFSET (OrcExecutor, params[insn->src_args[0]+(ORC_N_PARAMS)]);
       orc_lasx_insn_emit_xvldreplw (c, t0, c->exec_reg, offset);
       orc_lasx_insn_emit_xvldreplw (c, dest->alloc, c->exec_reg, offset1);
       orc_lasx_insn_emit_xvilvlw (c, dest->alloc, dest->alloc, t0);
+      orc_compiler_release_temp_reg (c, t0);
     } else {
       ORC_PROGRAM_ERROR(c, "unimplemented");
     }
@@ -170,35 +171,40 @@ orc_lasx_rule_loadupdb (OrcCompiler *c, void *user, OrcInstruction *insn)
       break;
   }
 
+  const int tmp = orc_compiler_get_temp_reg (c);
+
   switch (src->size) {
     case 1:
       if (size >= 32) {
-        orc_lsx_insn_emit_vilvlb (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
+        orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(tmp), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
         orc_lsx_insn_emit_vilvhb (c, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
-        orc_lasx_insn_emit_xvpermiq (c, dest->alloc, ORC_LOONG_XR0, 0x20);
+        orc_lasx_insn_emit_xvpermiq (c, dest->alloc, tmp, 0x20);
       } else {
          orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
       }
       break;
     case 2:
       if (size >= 32) {
-        orc_lsx_insn_emit_vilvlh (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
+        orc_lsx_insn_emit_vilvlh (c, ORC_LASX_TO_LSX_REG(tmp), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
         orc_lsx_insn_emit_vilvhh (c, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
-        orc_lasx_insn_emit_xvpermiq (c, dest->alloc, ORC_LOONG_XR0, 0x20);
+        orc_lasx_insn_emit_xvpermiq (c, dest->alloc, tmp, 0x20);
       } else {
          orc_lsx_insn_emit_vilvlh (c, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
       }
       break;
     case 4:
       if (size >= 32) {
-        orc_lsx_insn_emit_vilvlw (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
+        orc_lsx_insn_emit_vilvlw (c, ORC_LASX_TO_LSX_REG(tmp), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
         orc_lsx_insn_emit_vilvhw (c, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
-        orc_lasx_insn_emit_xvpermiq (c, dest->alloc, ORC_LOONG_XR0, 0x20);
+        orc_lasx_insn_emit_xvpermiq (c, dest->alloc, tmp, 0x20);
       } else {
          orc_lsx_insn_emit_vilvlw (c, ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc), ORC_LASX_TO_LSX_REG(dest->alloc));
       }
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp);
+
   src->update_type = 1;
 }
 
@@ -776,13 +782,17 @@ orc_lasx_rule_absb (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
-    orc_lasx_insn_emit_xvreplgr2vrb (c, ORC_LOONG_XR0, ORC_LOONG_ZERO);
-    orc_lasx_insn_emit_xvabsdb (c, dest, ORC_LOONG_XR0, src);
+    orc_lasx_insn_emit_xvreplgr2vrb (c, tmp0, ORC_LOONG_ZERO);
+    orc_lasx_insn_emit_xvabsdb (c, dest, tmp0, src);
   } else {
-    orc_lsx_insn_emit_vreplgr2vrb (c, ORC_LOONG_VR0, ORC_LOONG_ZERO);
-    orc_lsx_insn_emit_vabsdb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src));
+    orc_lsx_insn_emit_vreplgr2vrb (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LOONG_ZERO);
+    orc_lsx_insn_emit_vabsdb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -792,13 +802,17 @@ orc_lasx_rule_absw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
-    orc_lasx_insn_emit_xvreplgr2vrh (c, ORC_LOONG_XR0, ORC_LOONG_ZERO);
-    orc_lasx_insn_emit_xvabsdh (c, dest, ORC_LOONG_XR0, src);
+    orc_lasx_insn_emit_xvreplgr2vrh (c, tmp0, ORC_LOONG_ZERO);
+    orc_lasx_insn_emit_xvabsdh (c, dest, tmp0, src);
   } else {
-    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LOONG_VR0, ORC_LOONG_ZERO);
-    orc_lsx_insn_emit_vabsdh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src));
+    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LOONG_ZERO);
+    orc_lsx_insn_emit_vabsdh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -808,13 +822,17 @@ orc_lasx_rule_absl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
-    orc_lasx_insn_emit_xvreplgr2vrw (c, ORC_LOONG_XR0, ORC_LOONG_ZERO);
-    orc_lasx_insn_emit_xvabsdw (c, dest, ORC_LOONG_XR0, src);
+    orc_lasx_insn_emit_xvreplgr2vrw (c, tmp0, ORC_LOONG_ZERO);
+    orc_lasx_insn_emit_xvabsdw (c, dest, tmp0, src);
   } else {
-    orc_lsx_insn_emit_vreplgr2vrw (c, ORC_LOONG_VR0, ORC_LOONG_ZERO);
-    orc_lsx_insn_emit_vabsdw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src));
+    orc_lsx_insn_emit_vreplgr2vrw (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LOONG_ZERO);
+    orc_lsx_insn_emit_vabsdw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -914,15 +932,19 @@ orc_lasx_rule_div255w (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 255);
-    orc_lasx_insn_emit_xvreplgr2vrh (c, ORC_LOONG_XR0, c->gp_tmpreg);
-    orc_lasx_insn_emit_xvdivhu (c, dest, src, ORC_LOONG_XR0);
+    orc_lasx_insn_emit_xvreplgr2vrh (c, tmp0, c->gp_tmpreg);
+    orc_lasx_insn_emit_xvdivhu (c, dest, src, tmp0);
   } else {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 255);
-    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LOONG_VR0, c->gp_tmpreg);
-    orc_lsx_insn_emit_vdivhu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LOONG_VR0);
+    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LASX_TO_LSX_REG(tmp0), c->gp_tmpreg);
+    orc_lsx_insn_emit_vdivhu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(tmp0));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -932,15 +954,19 @@ orc_lasx_rule_signb (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 1);
-    orc_lasx_insn_emit_xvreplgr2vrb (c, ORC_LOONG_XR0, c->gp_tmpreg);
-    orc_lasx_insn_emit_xvsigncovb (c, dest, src, ORC_LOONG_XR0);
+    orc_lasx_insn_emit_xvreplgr2vrb (c, tmp0, c->gp_tmpreg);
+    orc_lasx_insn_emit_xvsigncovb (c, dest, src, tmp0);
   } else {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 1);
-    orc_lsx_insn_emit_vreplgr2vrb (c, ORC_LOONG_VR0, c->gp_tmpreg);
-    orc_lsx_insn_emit_vsigncovb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LOONG_VR0);
+    orc_lsx_insn_emit_vreplgr2vrb (c, ORC_LASX_TO_LSX_REG(tmp0), c->gp_tmpreg);
+    orc_lsx_insn_emit_vsigncovb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(tmp0));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -950,15 +976,19 @@ orc_lasx_rule_signw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 1);
-    orc_lasx_insn_emit_xvreplgr2vrh (c, ORC_LOONG_XR0, c->gp_tmpreg);
-    orc_lasx_insn_emit_xvsigncovh (c, dest, src, ORC_LOONG_XR0);
+    orc_lasx_insn_emit_xvreplgr2vrh (c, tmp0, c->gp_tmpreg);
+    orc_lasx_insn_emit_xvsigncovh (c, dest, src, tmp0);
   } else {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 1);
-    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LOONG_VR0, c->gp_tmpreg);
-    orc_lsx_insn_emit_vsigncovh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LOONG_VR0);
+    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LASX_TO_LSX_REG(tmp0), c->gp_tmpreg);
+    orc_lsx_insn_emit_vsigncovh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(tmp0));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -968,15 +998,19 @@ orc_lasx_rule_signl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 1);
-    orc_lasx_insn_emit_xvreplgr2vrw (c, ORC_LOONG_XR0, c->gp_tmpreg);
-    orc_lasx_insn_emit_xvsigncovw (c, dest, src, ORC_LOONG_XR0);
+    orc_lasx_insn_emit_xvreplgr2vrw (c, tmp0, c->gp_tmpreg);
+    orc_lasx_insn_emit_xvsigncovw (c, dest, src, tmp0);
   } else {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 1);
-    orc_lsx_insn_emit_vreplgr2vrw (c, ORC_LOONG_VR0, c->gp_tmpreg);
-    orc_lsx_insn_emit_vsigncovw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LOONG_VR0);
+    orc_lsx_insn_emit_vreplgr2vrw (c, ORC_LASX_TO_LSX_REG(tmp0), c->gp_tmpreg);
+    orc_lsx_insn_emit_vsigncovw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(tmp0));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -987,11 +1021,11 @@ orc_lasx_rule_divluw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
-  if (size >= 32) {
-    const OrcLoongRegister tmp1 = ORC_LOONG_XR0;
-    const OrcLoongRegister zero = ORC_LOONG_XR4;
-    const OrcLoongRegister mask = ORC_LOONG_XR5;
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int zero = orc_compiler_get_temp_reg (c);
+  const int mask = orc_compiler_get_temp_reg (c);
 
+  if (size >= 32) {
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 255);
     orc_lasx_insn_emit_xvreplgr2vrh (c, tmp1, c->gp_tmpreg);
     orc_lasx_insn_emit_xvxorv (c, zero, zero, zero);
@@ -1003,21 +1037,21 @@ orc_lasx_rule_divluw (OrcCompiler *c, void *user, OrcInstruction *insn)
     orc_lasx_insn_emit_xvaddh (c, dest, dest, mask);
     orc_lasx_insn_emit_xvminhu (c, dest, tmp1, dest);
   } else {
-    const OrcLoongRegister tmp1 = ORC_LOONG_VR0;
-    const OrcLoongRegister zero = ORC_LOONG_VR4;
-    const OrcLoongRegister mask = ORC_LOONG_VR5;
-
     orc_loongarch_insn_emit_addi_d (c, c->gp_tmpreg, ORC_LOONG_ZERO, 255);
-    orc_lsx_insn_emit_vreplgr2vrh (c, tmp1, c->gp_tmpreg);
-    orc_lsx_insn_emit_vxorv (c, zero, zero, zero);
-    orc_lsx_insn_emit_vandv (c, ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src2), tmp1);
-    orc_lsx_insn_emit_vseqh (c, mask, zero, ORC_LASX_TO_LSX_REG(src2));
-    orc_lsx_insn_emit_vaddh (c,  ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src2), mask);
+    orc_lsx_insn_emit_vreplgr2vrh (c, ORC_LASX_TO_LSX_REG(tmp1), c->gp_tmpreg);
+    orc_lsx_insn_emit_vxorv (c, ORC_LASX_TO_LSX_REG(zero), ORC_LASX_TO_LSX_REG(zero), ORC_LASX_TO_LSX_REG(zero));
+    orc_lsx_insn_emit_vandv (c, ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(tmp1));
+    orc_lsx_insn_emit_vseqh (c, ORC_LASX_TO_LSX_REG(mask), ORC_LASX_TO_LSX_REG(zero), ORC_LASX_TO_LSX_REG(src2));
+    orc_lsx_insn_emit_vaddh (c,  ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(mask));
     orc_lsx_insn_emit_vdivhu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src1), ORC_LASX_TO_LSX_REG(src2));
-    orc_lsx_insn_emit_vandnv (c, ORC_LASX_TO_LSX_REG(dest), mask, ORC_LASX_TO_LSX_REG(dest));
-    orc_lsx_insn_emit_vaddh (c,  ORC_LASX_TO_LSX_REG(dest), mask, ORC_LASX_TO_LSX_REG(dest));
-    orc_lsx_insn_emit_vminhu (c, ORC_LASX_TO_LSX_REG(dest), tmp1, ORC_LASX_TO_LSX_REG(dest));
+    orc_lsx_insn_emit_vandnv (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(mask), ORC_LASX_TO_LSX_REG(dest));
+    orc_lsx_insn_emit_vaddh (c,  ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(mask), ORC_LASX_TO_LSX_REG(dest));
+    orc_lsx_insn_emit_vminhu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(dest));
   }
+
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, zero);
+  orc_compiler_release_temp_reg (c, mask);
 }
 
 static void
@@ -1073,15 +1107,21 @@ orc_lasx_rule_mulsbw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lasx_insn_emit_vext2xvhb (c, ORC_LOONG_XR0, src1);
-    orc_lasx_insn_emit_vext2xvhb (c, ORC_LOONG_XR4, src2);
-    orc_lasx_insn_emit_xvmulh (c, dest, ORC_LOONG_XR0, ORC_LOONG_XR4);
+    orc_lasx_insn_emit_vext2xvhb (c, tmp0, src1);
+    orc_lasx_insn_emit_vext2xvhb (c, tmp1, src2);
+    orc_lasx_insn_emit_xvmulh (c, dest, tmp0, tmp1);
   } else {
-    orc_lsx_insn_emit_vsllwilhb (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-    orc_lsx_insn_emit_vsllwilhb (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-    orc_lsx_insn_emit_vmulh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR4);
+    orc_lsx_insn_emit_vsllwilhb (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+    orc_lsx_insn_emit_vsllwilhb (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+    orc_lsx_insn_emit_vmulh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1092,15 +1132,21 @@ orc_lasx_rule_mulswl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lasx_insn_emit_vext2xvwh (c, ORC_LOONG_XR0, src1);
-    orc_lasx_insn_emit_vext2xvwh (c, ORC_LOONG_XR4, src2);
-    orc_lasx_insn_emit_xvmulw (c, dest, ORC_LOONG_XR0, ORC_LOONG_XR4);
+    orc_lasx_insn_emit_vext2xvwh (c, tmp0, src1);
+    orc_lasx_insn_emit_vext2xvwh (c, tmp1, src2);
+    orc_lasx_insn_emit_xvmulw (c, dest, tmp0, tmp1);
   } else {
-    orc_lsx_insn_emit_vsllwilwh (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-    orc_lsx_insn_emit_vsllwilwh (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-    orc_lsx_insn_emit_vmulw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR4);
+    orc_lsx_insn_emit_vsllwilwh (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+    orc_lsx_insn_emit_vsllwilwh (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+    orc_lsx_insn_emit_vmulw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1111,15 +1157,21 @@ orc_lasx_rule_mulslq (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lasx_insn_emit_vext2xvdw (c, ORC_LOONG_XR0, src1);
-    orc_lasx_insn_emit_vext2xvdw (c, ORC_LOONG_XR4, src2);
-    orc_lasx_insn_emit_xvmuld (c, dest, ORC_LOONG_XR0, ORC_LOONG_XR4);
+    orc_lasx_insn_emit_vext2xvdw (c, tmp0, src1);
+    orc_lasx_insn_emit_vext2xvdw (c, tmp1, src2);
+    orc_lasx_insn_emit_xvmuld (c, dest, tmp0, tmp1);
   } else {
-    orc_lsx_insn_emit_vsllwildw (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-    orc_lsx_insn_emit_vsllwildw (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-    orc_lsx_insn_emit_vmuld (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR4);
+    orc_lsx_insn_emit_vsllwildw (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+    orc_lsx_insn_emit_vsllwildw (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+    orc_lsx_insn_emit_vmuld (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1220,15 +1272,21 @@ orc_lasx_rule_mulubw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lasx_insn_emit_vext2xvhubu (c, ORC_LOONG_XR0, src1);
-    orc_lasx_insn_emit_vext2xvhubu (c, ORC_LOONG_XR4, src2);
-    orc_lasx_insn_emit_xvmulh (c, dest, ORC_LOONG_XR0, ORC_LOONG_XR4);
+    orc_lasx_insn_emit_vext2xvhubu (c, tmp0, src1);
+    orc_lasx_insn_emit_vext2xvhubu (c, tmp1, src2);
+    orc_lasx_insn_emit_xvmulh (c, dest, tmp0, tmp1);
   } else {
-    orc_lsx_insn_emit_vsllwilhubu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-    orc_lsx_insn_emit_vsllwilhubu (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-    orc_lsx_insn_emit_vmulh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR4);
+    orc_lsx_insn_emit_vsllwilhubu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+    orc_lsx_insn_emit_vsllwilhubu (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+    orc_lsx_insn_emit_vmulh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1239,15 +1297,21 @@ orc_lasx_rule_muluwl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lasx_insn_emit_vext2xvwuhu (c, ORC_LOONG_XR0, src1);
-    orc_lasx_insn_emit_vext2xvwuhu (c, ORC_LOONG_XR4, src2);
-    orc_lasx_insn_emit_xvmulw (c, dest, ORC_LOONG_XR0, ORC_LOONG_XR4);
+    orc_lasx_insn_emit_vext2xvwuhu (c, tmp0, src1);
+    orc_lasx_insn_emit_vext2xvwuhu (c, tmp1, src2);
+    orc_lasx_insn_emit_xvmulw (c, dest, tmp0, tmp1);
   } else {
-    orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-    orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-    orc_lsx_insn_emit_vmulw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR4);
+    orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+    orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+    orc_lsx_insn_emit_vmulw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1258,15 +1322,21 @@ orc_lasx_rule_mululq (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lasx_insn_emit_vext2xvduwu (c, ORC_LOONG_XR0, src1);
-    orc_lasx_insn_emit_vext2xvduwu (c, ORC_LOONG_XR4, src2);
-    orc_lasx_insn_emit_xvmuld (c, dest, ORC_LOONG_XR0, ORC_LOONG_XR4);
+    orc_lasx_insn_emit_vext2xvduwu (c, tmp0, src1);
+    orc_lasx_insn_emit_vext2xvduwu (c, tmp1, src2);
+    orc_lasx_insn_emit_xvmuld (c, dest, tmp0, tmp1);
   } else {
-    orc_lsx_insn_emit_vsllwilduwu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-    orc_lsx_insn_emit_vsllwilduwu (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-    orc_lsx_insn_emit_vmuld (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR4);
+    orc_lsx_insn_emit_vsllwilduwu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+    orc_lsx_insn_emit_vsllwilduwu (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+    orc_lsx_insn_emit_vmuld (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1275,8 +1345,10 @@ orc_lasx_rule_accw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (c->loop_shift != 4) {
-      orc_lsx_insn_emit_vxorv (c, ORC_LOONG_VR0, ORC_LOONG_VR0, ORC_LOONG_VR0);
+      orc_lsx_insn_emit_vxorv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0));
   }
 
   switch (c->loop_shift) {
@@ -1284,28 +1356,30 @@ orc_lasx_rule_accw (OrcCompiler *c, void *user, OrcInstruction *insn)
       orc_lasx_insn_emit_xvaddh (c, dest, src1, dest);
       break;
     case 3:
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddh (c, dest, src1, dest);
       break;
     case 2:
       orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(src1), ORC_LASX_TO_LSX_REG(src1), 8);
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddh (c, dest, src1, dest);
       break;
     case 1:
       orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(src1), ORC_LASX_TO_LSX_REG(src1), 12);
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddh (c, dest, src1, dest);
       break;
     case 0:
       orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(src1), ORC_LASX_TO_LSX_REG(src1), 14);
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddh (c, dest, src1, dest);
       break;
     default:
       orc_compiler_error (c, "accw bad loop_shift %d", c->loop_shift);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1314,8 +1388,10 @@ orc_lasx_rule_accl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (c->loop_shift != 3) {
-      orc_lsx_insn_emit_vxorv (c, ORC_LOONG_VR0, ORC_LOONG_VR0, ORC_LOONG_VR0);
+      orc_lsx_insn_emit_vxorv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0));
   }
 
   switch (c->loop_shift) {
@@ -1323,23 +1399,25 @@ orc_lasx_rule_accl (OrcCompiler *c, void *user, OrcInstruction *insn)
       orc_lasx_insn_emit_xvaddw (c, dest, src1, dest);
       break;
     case 2:
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddw (c, dest, src1, dest);
       break;
     case 1:
       orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(src1), ORC_LASX_TO_LSX_REG(src1), 8);
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddw (c, dest, src1, dest);
       break;
     case 0:
       orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(src1), ORC_LASX_TO_LSX_REG(src1), 12);
-      orc_lasx_insn_emit_xvpermiq (c, src1, ORC_LOONG_XR0, 0x2);
+      orc_lasx_insn_emit_xvpermiq (c, src1, tmp0, 0x2);
       orc_lasx_insn_emit_xvaddw (c, dest, src1, dest);
       break;
     default:
       orc_compiler_error (c, "accl bad loop_shift %d", c->loop_shift);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1349,36 +1427,41 @@ orc_lasx_rule_accsadubl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int src2 = ORC_SRC_ARG (c, insn, 1);
   const int dest = ORC_DEST_ARG (c, insn, 0);
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   switch (c->loop_shift) {
     case 3:
-      orc_lasx_insn_emit_vext2xvwubu (c, ORC_LOONG_XR0, src1);
-      orc_lasx_insn_emit_vext2xvwubu (c, ORC_LOONG_XR4, src2);
-      orc_lasx_insn_emit_xvabsdwu (c, ORC_LOONG_XR0, ORC_LOONG_XR0, ORC_LOONG_XR4);
-      orc_lasx_insn_emit_xvsaddwu (c, dest, dest, ORC_LOONG_XR0);
+      orc_lasx_insn_emit_vext2xvwubu (c, tmp0, src1);
+      orc_lasx_insn_emit_vext2xvwubu (c, tmp1, src2);
+      orc_lasx_insn_emit_xvabsdwu (c, tmp0, tmp0, tmp1);
+      orc_lasx_insn_emit_xvsaddwu (c, dest, dest, tmp0);
       break;
     case 0:
     case 1:
     case 2:
-      orc_lsx_insn_emit_vsllwilhubu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1), 0);
-      orc_lsx_insn_emit_vsllwilhubu (c, ORC_LOONG_VR4, ORC_LASX_TO_LSX_REG(src2), 0);
-      orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LOONG_VR0, ORC_LOONG_VR0, 0);
-      orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LOONG_VR4, ORC_LOONG_VR4, 0);
-      orc_lsx_insn_emit_vabsdwu (c, ORC_LOONG_VR0, ORC_LOONG_VR0, ORC_LOONG_VR4);
-
+      orc_lsx_insn_emit_vsllwilhubu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1), 0);
+      orc_lsx_insn_emit_vsllwilhubu (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(src2), 0);
+      orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), 0);
+      orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(tmp1), 0);
+      orc_lsx_insn_emit_vabsdwu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp1));
       if (c->loop_shift == 0) {
-        orc_lsx_insn_emit_vbsllv (c, ORC_LOONG_VR0, ORC_LOONG_VR0, 12);
+        orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), 12);
       } else if (c->loop_shift == 1) {
-        orc_lsx_insn_emit_vbsllv (c, ORC_LOONG_VR0, ORC_LOONG_VR0, 8);
+        orc_lsx_insn_emit_vbsllv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), 8);
       }
-      orc_lsx_insn_emit_vxorv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, ORC_LOONG_VR4);
-      orc_lasx_insn_emit_xvpermiq (c, ORC_LOONG_XR0, ORC_LOONG_XR4, 0x2);
-      orc_lasx_insn_emit_xvsaddwu (c, dest, dest, ORC_LOONG_XR0);
+      orc_lsx_insn_emit_vxorv (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(tmp1));
+      orc_lasx_insn_emit_xvpermiq (c, tmp0, tmp1, 0x2);
+      orc_lasx_insn_emit_xvsaddwu (c, dest, dest, tmp0);
       break;
 
     default:
       orc_compiler_error (c, "accsadubl bad loop_shift %d", c->loop_shift);
       break;
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -1389,13 +1472,17 @@ orc_lasx_rule_mergebw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vilvlb (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
+    orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
     orc_lsx_insn_emit_vilvhb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1406,13 +1493,17 @@ orc_lasx_rule_mergewl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vilvlh (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
+    orc_lsx_insn_emit_vilvlh (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
     orc_lsx_insn_emit_vilvhh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vilvlh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1423,13 +1514,17 @@ orc_lasx_rule_mergelq (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vilvlw (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
+    orc_lsx_insn_emit_vilvlw (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
     orc_lsx_insn_emit_vilvhw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vilvlw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src2), ORC_LASX_TO_LSX_REG(src1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1649,15 +1744,19 @@ orc_lasx_rule_splatw3q (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
-    orc_lasx_insn_emit_xvrepl128veih (c, ORC_LOONG_XR0, src, 3);
+    orc_lasx_insn_emit_xvrepl128veih (c, tmp0, src, 3);
     orc_lasx_insn_emit_xvrepl128veih (c, dest, src, 7);
-    orc_lasx_insn_emit_xvilvld(c, dest, dest, ORC_LOONG_XR0);
+    orc_lasx_insn_emit_xvilvld(c, dest, dest, tmp0);
   } else {
-    orc_lsx_insn_emit_vreplveih (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 3);
+    orc_lsx_insn_emit_vreplveih (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 3);
     orc_lsx_insn_emit_vreplveih (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 7);
-    orc_lsx_insn_emit_vilvld (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0);
+    orc_lsx_insn_emit_vilvld (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1667,13 +1766,17 @@ orc_lasx_rule_splatbw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vilvlb (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
+    orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
     orc_lsx_insn_emit_vilvhb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
      orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -1683,15 +1786,21 @@ orc_lasx_rule_splatbl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+
   if (size >= 8) {
-    orc_lsx_insn_emit_vilvlb (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
-    orc_lsx_insn_emit_vilvlh (c, ORC_LOONG_VR4, ORC_LOONG_VR0, ORC_LOONG_VR0);
-    orc_lsx_insn_emit_vilvhh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LOONG_VR0, ORC_LOONG_VR0);
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR4, 0x20);
+    orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
+    orc_lsx_insn_emit_vilvlh (c, ORC_LASX_TO_LSX_REG(tmp1), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0));
+    orc_lsx_insn_emit_vilvhh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0));
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp1, 0x20);
   } else {
     orc_lsx_insn_emit_vilvlb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
     orc_lsx_insn_emit_vilvlh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), ORC_LASX_TO_LSX_REG(src));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
 }
 
 static void
@@ -2268,13 +2377,17 @@ orc_lasx_rule_convwbw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vsllwilhb (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 0);
+    orc_lsx_insn_emit_vsllwilhb (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 0);
     orc_lsx_insn_emit_vexthhb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vsllwilhb (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 0);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2284,13 +2397,17 @@ orc_lasx_rule_convwwl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vsllwilwh (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 0);
+    orc_lsx_insn_emit_vsllwilwh (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 0);
     orc_lsx_insn_emit_vexthwh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vsllwilwh (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 0);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2300,13 +2417,17 @@ orc_lasx_rule_convwlq (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vsllwildw (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 0);
+    orc_lsx_insn_emit_vsllwildw (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 0);
     orc_lsx_insn_emit_vexthdw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vsllwildw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 0);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2316,13 +2437,17 @@ orc_lasx_rule_convubw (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vsllwilhubu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 0);
+    orc_lsx_insn_emit_vsllwilhubu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 0);
     orc_lsx_insn_emit_vexthhubu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vsllwilhubu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 0);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2332,13 +2457,17 @@ orc_lasx_rule_convuwl (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 0);
+    orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 0);
     orc_lsx_insn_emit_vexthwuhu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vsllwilwuhu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 0);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2348,13 +2477,17 @@ orc_lasx_rule_convulq (OrcCompiler *c, void *user, OrcInstruction *insn)
   const int dest = ORC_DEST_ARG (c, insn, 0);
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vsllwilduwu (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src), 0);
+    orc_lsx_insn_emit_vsllwilduwu (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src), 0);
     orc_lsx_insn_emit_vexthduwu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vsllwilduwu (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src), 0);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2586,15 +2719,19 @@ orc_lasx_rule_convld (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
   const int src1 = ORC_SRC_ARG (c, insn, 0);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
+
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vffintldw (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1));
+    orc_lsx_insn_emit_vffintldw (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1));
     orc_lsx_insn_emit_vffinthdw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src1));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vffintldw (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2616,15 +2753,19 @@ orc_lasx_rule_convfd (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
   const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 4);
   const int dest = ORC_DEST_ARG (c, insn, 0);
-
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
+
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+
   if (size >= 16) {
-    orc_lsx_insn_emit_vfcvtlds (c, ORC_LOONG_VR0, ORC_LASX_TO_LSX_REG(src1));
+    orc_lsx_insn_emit_vfcvtlds (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(src1));
     orc_lsx_insn_emit_vfcvthds (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src1));
-    orc_lasx_insn_emit_xvpermiq (c, dest, ORC_LOONG_XR0, 0x20);
+    orc_lasx_insn_emit_xvpermiq (c, dest, tmp0, 0x20);
   } else {
     orc_lsx_insn_emit_vfcvtlds (c, ORC_LASX_TO_LSX_REG(dest), ORC_LASX_TO_LSX_REG(src1));
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
 }
 
 static void
@@ -2668,14 +2809,12 @@ orc_lasx_rule_addf (OrcCompiler *c, void *user, OrcInstruction *insn)
     const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 4);
     const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 4);
     const int dest = ORC_DEST_ARG (c, insn, 0);
-
     orc_lasx_insn_emit_xvfadds (c, dest, src1, src2);
     orc_lasx_insn_emit_normalize (c, dest, dest, 4);
   } else {
     const int src1 = NORMALIZE_SRC_ARG1 (c, insn, 0, 4);
     const int src2 = NORMALIZE_SRC_ARG1 (c, insn, 1, 4);
     const int dest = ORC_LASX_TO_LSX_REG (ORC_DEST_ARG (c, insn, 0));
-
     orc_lsx_insn_emit_vfadds (c, dest, src1, src2);
     orc_lsx_insn_emit_normalize (c, dest, dest, 4);
   }
@@ -2970,29 +3109,37 @@ orc_lasx_rule_minf (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 4);
     const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 4);
     const int dest = ORC_DEST_ARG (c, insn, 0);
 
-    orc_lasx_insn_emit_xvfmins (c, ORC_LOONG_XR4, src1, src2);
-    orc_lasx_insn_emit_xvfcmpcuns (c, ORC_LOONG_XR5, src1, src1);
-    orc_lasx_insn_emit_xvfcmpcuns (c, ORC_LOONG_XR6, src2, src2);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src1, ORC_LOONG_XR5);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src2, ORC_LOONG_XR6);
-    orc_lasx_insn_emit_normalize (c, ORC_LOONG_XR4, dest, 4);
+    orc_lasx_insn_emit_xvfmins (c, tmp0, src1, src2);
+    orc_lasx_insn_emit_xvfcmpcuns (c, tmp1, src1, src1);
+    orc_lasx_insn_emit_xvfcmpcuns (c, tmp2, src2, src2);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src1, tmp1);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src2, tmp2);
+    orc_lasx_insn_emit_normalize (c, tmp0, dest, 4);
   } else {
     const int src1 = NORMALIZE_SRC_ARG1 (c, insn, 0, 4);
     const int src2 = NORMALIZE_SRC_ARG1 (c, insn, 1, 4);
     const int dest = ORC_LASX_TO_LSX_REG (ORC_DEST_ARG (c, insn, 0));
 
-    orc_lsx_insn_emit_vfmins (c, ORC_LOONG_VR4, src1, src2);
-    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LOONG_VR5, src1, src1);
-    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LOONG_VR6, src2, src2);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src1, ORC_LOONG_VR5);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src2, ORC_LOONG_VR6);
-    orc_lsx_insn_emit_normalize (c, ORC_LOONG_VR4, dest, 4);
+    orc_lsx_insn_emit_vfmins (c, ORC_LASX_TO_LSX_REG(tmp0), src1, src2);
+    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LASX_TO_LSX_REG(tmp1), src1, src1);
+    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LASX_TO_LSX_REG(tmp2), src2, src2);
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src1, ORC_LASX_TO_LSX_REG(tmp1));
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src2, ORC_LASX_TO_LSX_REG(tmp2));
+    orc_lsx_insn_emit_normalize (c, ORC_LASX_TO_LSX_REG(tmp0), dest, 4);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 static void
@@ -3000,29 +3147,37 @@ orc_lasx_rule_mind (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 8);
     const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 8);
     const int dest = ORC_DEST_ARG (c, insn, 0);
 
-    orc_lasx_insn_emit_xvfmind (c, ORC_LOONG_XR4, src1, src2);
-    orc_lasx_insn_emit_xvfcmpcund (c, ORC_LOONG_XR5, src1, src1);
-    orc_lasx_insn_emit_xvfcmpcund (c, ORC_LOONG_XR6, src2, src2);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src1, ORC_LOONG_XR5);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src2, ORC_LOONG_XR6);
-    orc_lasx_insn_emit_normalize (c, ORC_LOONG_XR4, dest, 8);
+    orc_lasx_insn_emit_xvfmind (c, tmp0, src1, src2);
+    orc_lasx_insn_emit_xvfcmpcund (c, tmp1, src1, src1);
+    orc_lasx_insn_emit_xvfcmpcund (c, tmp2, src2, src2);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src1, tmp1);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src2, tmp2);
+    orc_lasx_insn_emit_normalize (c, tmp0, dest, 8);
   } else {
     const int src1 = NORMALIZE_SRC_ARG1 (c, insn, 0, 8);
     const int src2 = NORMALIZE_SRC_ARG1 (c, insn, 1, 8);
     const int dest = ORC_LASX_TO_LSX_REG (ORC_DEST_ARG (c, insn, 0));
 
-    orc_lsx_insn_emit_vfmind (c, ORC_LOONG_VR4, src1, src2);
-    orc_lsx_insn_emit_vfcmpcund (c, ORC_LOONG_VR5, src1, src1);
-    orc_lsx_insn_emit_vfcmpcund (c, ORC_LOONG_VR6, src2, src2);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src1, ORC_LOONG_VR5);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src2, ORC_LOONG_VR6);
-    orc_lsx_insn_emit_normalize (c, ORC_LOONG_VR4, dest, 8);
+    orc_lsx_insn_emit_vfmind (c, ORC_LASX_TO_LSX_REG(tmp0), src1, src2);
+    orc_lsx_insn_emit_vfcmpcund (c, ORC_LASX_TO_LSX_REG(tmp1), src1, src1);
+    orc_lsx_insn_emit_vfcmpcund (c, ORC_LASX_TO_LSX_REG(tmp2), src2, src2);
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src1, ORC_LASX_TO_LSX_REG(tmp1));
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src2, ORC_LASX_TO_LSX_REG(tmp2));
+    orc_lsx_insn_emit_normalize (c, ORC_LASX_TO_LSX_REG(tmp0), dest, 8);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 static void
@@ -3030,29 +3185,37 @@ orc_lasx_rule_maxf (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 4);
     const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 4);
     const int dest = ORC_DEST_ARG (c, insn, 0);
 
-    orc_lasx_insn_emit_xvfmaxs (c, ORC_LOONG_XR4, src1, src2);
-    orc_lasx_insn_emit_xvfcmpcuns (c, ORC_LOONG_XR5, src1, src1);
-    orc_lasx_insn_emit_xvfcmpcuns (c, ORC_LOONG_XR6, src2, src2);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src1, ORC_LOONG_XR5);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src2, ORC_LOONG_XR6);
-    orc_lasx_insn_emit_normalize (c, ORC_LOONG_XR4, dest, 4);
+    orc_lasx_insn_emit_xvfmaxs (c, tmp0, src1, src2);
+    orc_lasx_insn_emit_xvfcmpcuns (c, tmp1, src1, src1);
+    orc_lasx_insn_emit_xvfcmpcuns (c, tmp2, src2, src2);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src1, tmp1);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src2, tmp2);
+    orc_lasx_insn_emit_normalize (c, tmp0, dest, 4);
   } else {
     const int src1 = NORMALIZE_SRC_ARG1 (c, insn, 0, 4);
     const int src2 = NORMALIZE_SRC_ARG1 (c, insn, 1, 4);
     const int dest = ORC_LASX_TO_LSX_REG (ORC_DEST_ARG (c, insn, 0));
 
-    orc_lsx_insn_emit_vfmaxs (c, ORC_LOONG_VR4, src1, src2);
-    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LOONG_VR5, src1, src1);
-    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LOONG_VR6, src2, src2);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src1, ORC_LOONG_VR5);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src2, ORC_LOONG_VR6);
-    orc_lsx_insn_emit_normalize (c, ORC_LOONG_VR4, dest, 4);
+    orc_lsx_insn_emit_vfmaxs (c, ORC_LASX_TO_LSX_REG(tmp0), src1, src2);
+    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LASX_TO_LSX_REG(tmp1), src1, src1);
+    orc_lsx_insn_emit_vfcmpcuns (c, ORC_LASX_TO_LSX_REG(tmp2), src2, src2);
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src1, ORC_LASX_TO_LSX_REG(tmp1));
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src2, ORC_LASX_TO_LSX_REG(tmp2));
+    orc_lsx_insn_emit_normalize (c, ORC_LASX_TO_LSX_REG(tmp0), dest, 4);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 static void
@@ -3060,29 +3223,37 @@ orc_lasx_rule_maxd (OrcCompiler *c, void *user, OrcInstruction *insn)
 {
   const int size = c->vars[insn->src_args[0]].size << c->loop_shift;
 
+  const int tmp0 = orc_compiler_get_temp_reg (c);
+  const int tmp1 = orc_compiler_get_temp_reg (c);
+  const int tmp2 = orc_compiler_get_temp_reg (c);
+
   if (size >= 32) {
     const int src1 = NORMALIZE_SRC_ARG (c, insn, 0, 8);
     const int src2 = NORMALIZE_SRC_ARG (c, insn, 1, 8);
     const int dest = ORC_DEST_ARG (c, insn, 0);
 
-    orc_lasx_insn_emit_xvfmaxd (c, ORC_LOONG_XR4, src1, src2);
-    orc_lasx_insn_emit_xvfcmpcund (c, ORC_LOONG_XR5, src1, src1);
-    orc_lasx_insn_emit_xvfcmpcund (c, ORC_LOONG_XR6, src2, src2);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src1, ORC_LOONG_XR5);
-    orc_lasx_insn_emit_xvbitselv (c, ORC_LOONG_XR4, ORC_LOONG_XR4, src2, ORC_LOONG_XR6);
-    orc_lasx_insn_emit_normalize (c, ORC_LOONG_XR4, dest, 8);
+    orc_lasx_insn_emit_xvfmaxd (c, tmp0, src1, src2);
+    orc_lasx_insn_emit_xvfcmpcund (c, tmp1, src1, src1);
+    orc_lasx_insn_emit_xvfcmpcund (c, tmp2, src2, src2);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src1, tmp1);
+    orc_lasx_insn_emit_xvbitselv (c, tmp0, tmp0, src2, tmp2);
+    orc_lasx_insn_emit_normalize (c, tmp0, dest, 8);
   } else {
     const int src1 = NORMALIZE_SRC_ARG1 (c, insn, 0, 8);
     const int src2 = NORMALIZE_SRC_ARG1 (c, insn, 1, 8);
     const int dest = ORC_LASX_TO_LSX_REG (ORC_DEST_ARG (c, insn, 0));
 
-    orc_lsx_insn_emit_vfmaxd (c, ORC_LOONG_VR4, src1, src2);
-    orc_lsx_insn_emit_vfcmpcund (c, ORC_LOONG_VR5, src1, src1);
-    orc_lsx_insn_emit_vfcmpcund (c, ORC_LOONG_VR6, src2, src2);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src1, ORC_LOONG_VR5);
-    orc_lsx_insn_emit_vbitselv (c, ORC_LOONG_VR4, ORC_LOONG_VR4, src2, ORC_LOONG_VR6);
-    orc_lsx_insn_emit_normalize (c, ORC_LOONG_VR4, dest, 8);
+    orc_lsx_insn_emit_vfmaxd (c, ORC_LASX_TO_LSX_REG(tmp0), src1, src2);
+    orc_lsx_insn_emit_vfcmpcund (c, ORC_LASX_TO_LSX_REG(tmp1), src1, src1);
+    orc_lsx_insn_emit_vfcmpcund (c, ORC_LASX_TO_LSX_REG(tmp2), src2, src2);
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src1, ORC_LASX_TO_LSX_REG(tmp1));
+    orc_lsx_insn_emit_vbitselv (c, ORC_LASX_TO_LSX_REG(tmp0), ORC_LASX_TO_LSX_REG(tmp0), src2, ORC_LASX_TO_LSX_REG(tmp2));
+    orc_lsx_insn_emit_normalize (c, ORC_LASX_TO_LSX_REG(tmp0), dest, 8);
   }
+
+  orc_compiler_release_temp_reg (c, tmp0);
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 #define REG(opcode, rule, size) \

@@ -36,6 +36,7 @@
 #include <orc/loongarch/orcloongarch.h>
 #include <orc/loongarch/orclsxinsn.h>
 #include <orc/loongarch/orcloongarchinsn.h>
+#include <string.h>
 
 typedef enum
 {
@@ -1421,7 +1422,7 @@ orc_lsx_insn_emit_vstelmb (OrcCompiler *c,
     OrcLoongRegister vd, OrcLoongRegister rj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  vstelm.b %s, %s, %d, %d\n", NAME (vd), NAME (rj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMB, VREG(vd), GREG(rj), 0b0011000110000000000000 | (idx << 9 ) | si8));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMB, VREG(vd), GREG(rj), (1 << 13) | (idx << 8 ) | (si8 & 0xff)));
 }
 
 void
@@ -1429,7 +1430,7 @@ orc_lsx_insn_emit_vstelmh (OrcCompiler *c,
     OrcLoongRegister vd, OrcLoongRegister rj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  vstelm.h %s, %s, %d, %d\n", NAME (vd), NAME (rj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMH, VREG(vd), GREG(rj), 0b0011000101000000000000 | (idx << 9 ) | (si8 >> 1)));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMH, VREG(vd), GREG(rj), (1 << 12) | (idx << 8 ) | ((si8 >> 1) & 0xff)));
 }
 
 void
@@ -1437,7 +1438,7 @@ orc_lsx_insn_emit_vstelmw (OrcCompiler *c,
     OrcLoongRegister vd, OrcLoongRegister rj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  vstelm.w %s, %s, %d, %d\n", NAME (vd), NAME (rj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMW, VREG(vd), GREG(rj), 0b0011000100100000000000 | (idx << 9 ) | (si8 >> 2)));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMW, VREG(vd), GREG(rj), (1 << 11) | (idx << 8 ) | ((si8 >> 2) & 0xff)));
 }
 
 void
@@ -1445,7 +1446,7 @@ orc_lsx_insn_emit_vstelmd (OrcCompiler *c,
     OrcLoongRegister vd, OrcLoongRegister rj, int si8, int idx)
 {
   ORC_ASM_CODE (c, "  vstelm.d %s, %s, %d, %d\n", NAME (vd), NAME (rj), si8, idx);
-  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMD, VREG(vd), GREG(rj), 0b0011000100010000000000 | (idx << 9 ) | (si8 >> 3)));
+  orc_loongarch_insn_emit32 (c, LOONG_2RI14_INSTRUCTION(OPCODE_VSTELMD, VREG(vd), GREG(rj), (1 << 10) | (idx << 8 ) | ((si8 >> 3) & 0xff)));
 }
 
 void
@@ -1888,7 +1889,12 @@ orc_lsx_insn_emit_flush_subnormals (OrcCompiler *c, int element_width,
       element_width ==
       4 ? 0xff800000 : ORC_UINT64_C (0xfff) << 52;
   const orc_uint64 exponent = upper & (upper >> 1);
-  const OrcLoongRegister tmp1 = ORC_LOONG_VR0, tmp2 = ORC_LOONG_VR15;
+
+  int tmp1 = orc_compiler_get_temp_reg (c);
+  int tmp2 = orc_compiler_get_temp_reg (c);
+  if (strcmp (c->target->name, "lasx") == 0) {
+    tmp1 -= 32; tmp2 -= 32;
+  }
 
   orc_loongarch_insn_emit_load_imm (c, c->gp_tmpreg, exponent);
 
@@ -1916,6 +1922,12 @@ orc_lsx_insn_emit_flush_subnormals (OrcCompiler *c, int element_width,
     orc_lsx_insn_emit_vandv (c, tmp2, tmp2, vs);
     orc_lsx_insn_emit_vbitselv (c, vd, vd, tmp2, tmp1);
   }
+
+  if (strcmp (c->target->name, "lasx") == 0) {
+    tmp1 += 32; tmp2 += 32;
+  }
+  orc_compiler_release_temp_reg (c, tmp1);
+  orc_compiler_release_temp_reg (c, tmp2);
 }
 
 OrcLoongRegister
