@@ -453,6 +453,8 @@ pages ci:
       libglib2.0-dev
       libjson-glib-dev
       flex
+      git
+      npm
       llvm
       libclang-dev
       clang

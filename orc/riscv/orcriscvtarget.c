@@ -60,10 +60,10 @@ orc_riscv_target_detect_extension (const char *exts, const char *ext)
     return found && (found < sep || sep == NULL);
   }
 
-  do {
+  for (; sep; sep = strchr (sep + 1, '_')) {
     if (strncmp (sep + 1, ext, n) && !isalnum (exts[n]))
       return TRUE;
-  } while ((sep = strchr (sep + 1, '_')));
+  }
 
   return FALSE;
 }
