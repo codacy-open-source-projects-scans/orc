@@ -67,7 +67,9 @@ orc_riscv_target_detect_extension (const char *exts, const char *ext)
 
   return FALSE;
 }
+#endif
 
+#ifdef HAVE_RISCV
 static orc_uint32
 orc_riscv_target_get_cpu_flags (void)
 {
@@ -77,6 +79,7 @@ orc_riscv_target_get_cpu_flags (void)
   ret |= ORC_TARGET_RISCV_64BIT;
 #endif
 
+#ifdef __linux__
   char *cpuinfo = get_proc_cpuinfo ();
   if (cpuinfo == NULL) {
     ORC_DEBUG ("Failed to read /proc/cpuinfo");
@@ -105,10 +108,10 @@ orc_riscv_target_get_cpu_flags (void)
 
     free (cpuinfo_line);
   }
+#endif
 
   return ret;
 }
-
 #endif
 
 static void
