@@ -117,7 +117,7 @@ orc_riscv_target_get_cpu_flags (void)
 static void
 orc_riscv_target_flush_cache (OrcCode *code)
 {
-#if defined(HAVE_RISCV) && defined(__linux__)
+#if defined(HAVE_RISCV) && (defined(__linux__) || defined(__OpenBSD__))
 #if __has_builtin(__builtin___clear_cache)
   __builtin___clear_cache ((char*)code->code, (char*)code->code + code->code_size);
   if ((void *) code->exec != (void *) code->code)
@@ -139,7 +139,11 @@ orc_riscv_target_get_default_flags (void)
 #if defined(HAVE_RISCV) && defined(__linux__)
   return orc_riscv_target_get_cpu_flags ();
 #else
-  return ORC_TARGET_RISCV_64BIT | ORC_TARGET_RISCV_V;
+  orc_uint32 ret = 0;
+#if defined(__riscv_xlen) && __riscv_xlen == 64
+  ret |= ORC_TARGET_RISCV_64BIT;
+#endif
+  return ret;
 #endif
 }
 
