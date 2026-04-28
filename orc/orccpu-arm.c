@@ -44,11 +44,30 @@
 #include <sys/time.h>
 #endif
 #include <time.h>
-#if defined(__linux__)
+#ifdef HAVE_GETAUXVAL
+#include <sys/auxv.h>
+#elif defined(__linux__)
 #include <linux/auxvec.h>
 #endif
 #ifdef __APPLE__
 #include <TargetConditionals.h>
+#endif
+
+#ifdef __linux__
+
+#ifdef __arm__
+#ifndef HWCAP_ARM_NEON
+#define HWCAP_ARM_NEON (1 << 12)
+#endif
+#ifndef HWCAP_ARM_EDSP
+#define HWCAP_ARM_EDSP (1 << 7)
+#endif
+#elif defined(__aarch64__)
+#ifndef HWCAP_ASIMD
+#define HWCAP_ASIMD (1 << 1)
+#endif
+#endif
+
 #endif
 
 /***** arm *****/
@@ -66,7 +85,28 @@ orc_profile_stamp_xscale(void)
 }
 #endif
 
-#if defined(__linux__)
+#ifdef HAVE_GETAUXVAL
+static unsigned long
+orc_check_neon_getauxval (void)
+{
+  unsigned long flags = 0;
+  unsigned long auxv;
+
+  auxv = getauxval(AT_HWCAP);
+
+#ifdef __arm__
+  if (auxv & HWCAP_ARM_NEON)
+    flags |= ORC_TARGET_NEON_NEON;
+  if (auxv & HWCAP_ARM_EDSP)
+    flags |= ORC_TARGET_ARM_EDSP;
+#elif defined(__aarch64__)
+  if (auxv & HWCAP_ASIMD)
+    flags |= ORC_TARGET_NEON_NEON | ORC_TARGET_ARM_EDSP;
+#endif
+
+  return flags;
+}
+#elif defined(__linux__)
 static unsigned long
 orc_check_neon_proc_auxv (void)
 {
@@ -89,16 +129,16 @@ orc_check_neon_proc_auxv (void)
 
     if (aux[0] == AT_HWCAP) {
 #ifdef __arm__
-      /* if (aux[1] & 64) flags |= ORC_TARGET_NEON_VFP; */
-      /* if (aux[1] & 512) flags |= ORC_TARGET_NEON_IWMMXT; */
-      if (aux[1] & 4096) flags |= ORC_TARGET_NEON_NEON;
-      if (aux[1] & 128) flags |= ORC_TARGET_ARM_EDSP;
+      if (aux[1] & HWCAP_ARM_NEON)
+        flags |= ORC_TARGET_NEON_NEON;
+      if (aux[1] & HWCAP_ARM_EDSP)
+        flags |= ORC_TARGET_ARM_EDSP;
 #elif __aarch64__
       /**
-       * Use HWCAP_ASIMD (1 << 1) to make sure Advanced SIMD (ASIMD) units exist in AArch64.
+       * Use HWCAP_ASIMD to make sure Advanced SIMD (ASIMD) units exist in AArch64.
        * Note that some ARMv7 features including HWCAP_NEON are always supported by ARMv8 CPUs.
        */
-      if (aux[1] & (1 << 1))
+      if (aux[1] & HWCAP_ASIMD)
         flags |= ORC_TARGET_NEON_NEON | ORC_TARGET_ARM_EDSP; /** reuse 32bit flags */
 #endif
       ORC_INFO("arm hwcap %08x", aux[1]);
@@ -115,6 +155,7 @@ orc_check_neon_proc_auxv (void)
 }
 #endif
 
+#ifndef HAVE_GETAUXVAL
 static unsigned long
 orc_cpu_arm_getflags_cpuinfo ()
 {
@@ -125,7 +166,7 @@ orc_cpu_arm_getflags_cpuinfo ()
   ret = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
 #elif defined (__APPLE__) && defined (__arm64__) && TARGET_OS_OSX
   ret = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
-#else
+#elif defined(__linux__)
   char *cpuinfo;
   char *cpuinfo_line;
   char **flags;
@@ -174,20 +215,25 @@ out:
 
   return ret;
 }
+#endif
 
 unsigned long
 orc_arm_get_cpu_flags (void)
 {
   unsigned long neon_flags = 0;
 
-#ifdef __linux__
+#ifdef HAVE_GETAUXVAL
+  neon_flags = orc_check_neon_getauxval ();
+#elif defined(__linux__)
   neon_flags = orc_check_neon_proc_auxv ();
 #endif
+#if !defined(HAVE_GETAUXVAL)
   if (!neon_flags) {
     /* On ARM, /proc/self/auxv might not be accessible.
      * Fall back to /proc/cpuinfo */
     neon_flags = orc_cpu_arm_getflags_cpuinfo ();
   }
+#endif
 
   if (orc_compiler_flag_check ("-neon")) {
     neon_flags &= ~ORC_TARGET_NEON_NEON;

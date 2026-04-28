@@ -32,15 +32,19 @@
 #include <orc/orcinternal.h>
 
 #if defined(__linux__)
+#ifdef HAVE_GETAUXVAL
+#include <sys/auxv.h>
+#elif defined(__linux__)
 #include <linux/auxvec.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+#endif
 
 #ifndef PPC_FEATURE_HAS_ALTIVEC
-/* From linux-2.6/include/asm-powerpc/cputable.h */
 #define PPC_FEATURE_HAS_ALTIVEC 0x10000000
 #endif
 
@@ -50,8 +54,6 @@
 
 #ifndef PPC_FEATURE2_ARCH_2_07
 #define PPC_FEATURE2_ARCH_2_07 0x80000000
-#endif
-
 #endif
 
 #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__NetBSD__)
@@ -78,14 +80,6 @@ orc_profile_stamp_tb(void)
 }
 #endif
 
-#if !defined(__FreeBSD__) && !defined(__FreeBSD_kernel__) && !defined(__OpenBSD__) && !defined(__APPLE__) && !defined(__linux__)
-static void
-test_altivec (void * ignored)
-{
-  asm volatile ("vor v0, v0, v0\n");
-}
-#endif
-
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
 #if defined(__APPLE__)
 #define SYSCTL "hw.vectorunit"
@@ -107,9 +101,7 @@ orc_check_powerpc_sysctl_bsd (void)
     orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_ALTIVEC;
   }
 }
-#endif
-
-#if defined(__OpenBSD__)
+#elif defined(__OpenBSD__)
 static void
 orc_check_powerpc_sysctl_openbsd (void)
 {
@@ -125,9 +117,44 @@ orc_check_powerpc_sysctl_openbsd (void)
     orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_ALTIVEC;
   }
 }
-#endif
+#elif defined(HAVE_GETAUXVAL)
+static void
+orc_check_powerpc_getauxval (void)
+{
+  unsigned long hwcap;
+  unsigned long hwcap2;
+  unsigned long val;
+  const char *platform;
 
-#if defined(__linux__)
+  hwcap = getauxval(AT_HWCAP);
+  hwcap2 = getauxval(AT_HWCAP2);
+
+  if (hwcap & PPC_FEATURE_HAS_ALTIVEC)
+    orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_ALTIVEC;
+  if (hwcap & PPC_FEATURE_HAS_VSX)
+    orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_VSX;
+  if (hwcap2 & PPC_FEATURE2_ARCH_2_07)
+    orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_V207;
+
+  platform = (const char *)getauxval(AT_PLATFORM);
+  if (platform)
+    _orc_cpu_name = platform;
+
+#ifdef AT_L1D_CACHESIZE
+    val = getauxval(AT_L1D_CACHESIZE);
+    if (val)
+      _orc_data_cache_size_level1 = val;
+
+    val = getauxval(AT_L2_CACHESIZE);
+    if (val)
+      _orc_data_cache_size_level2 = val;
+
+    val = getauxval(AT_L3_CACHESIZE);
+    if (val)
+      _orc_data_cache_size_level3 = val;
+#endif
+}
+#elif defined(__linux__)
 static void
 orc_check_powerpc_proc_auxv (void)
 {
@@ -168,14 +195,10 @@ orc_check_powerpc_proc_auxv (void)
         _orc_data_cache_size_level1 = buf[i + 1];
         found++;
       }
-#endif
-#ifdef AT_L2_CACHESIZE
       if (buf[i] == AT_L2_CACHESIZE) {
         _orc_data_cache_size_level2 = buf[i + 1];
         found++;
       }
-#endif
-#ifdef AT_L3_CACHESIZE
       if (buf[i] == AT_L3_CACHESIZE) {
         _orc_data_cache_size_level3 = buf[i + 1];
         found++;
@@ -188,9 +211,13 @@ orc_check_powerpc_proc_auxv (void)
 
   close(fd);
 }
-#endif
+#else
+static void
+test_altivec (void * ignored)
+{
+  asm volatile ("vor v0, v0, v0\n");
+}
 
-#if !defined(__FreeBSD__) && !defined(__FreeBSD_kernel__) && !defined(__OpenBSD__) && !defined(__APPLE__) && !defined(__linux__) && !defined(__NetBSD__)
 static void
 orc_check_powerpc_fault (void)
 {
@@ -215,6 +242,8 @@ powerpc_detect_cpu_flags (void)
   orc_check_powerpc_sysctl_bsd();
 #elif defined(__OpenBSD__)
   orc_check_powerpc_sysctl_openbsd();
+#elif defined(HAVE_GETAUXVAL)
+  orc_check_powerpc_getauxval();
 #elif defined(__linux__)
   orc_check_powerpc_proc_auxv();
 #else
