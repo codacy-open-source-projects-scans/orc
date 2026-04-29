@@ -31,12 +31,13 @@
 #include <orc/orc.h>
 #include <orc/orcinternal.h>
 
-#if defined(__linux__)
-#ifdef HAVE_GETAUXVAL
+#if defined(HAVE_GETAUXVAL) || defined(HAVE_ELF_AUX_INFO)
 #include <sys/auxv.h>
+#ifdef __FreeBSD__
+#include <machine/cpu.h>
+#endif
 #elif defined(__linux__)
 #include <linux/auxvec.h>
-#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -56,7 +57,7 @@
 #define PPC_FEATURE2_ARCH_2_07 0x80000000
 #endif
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__NetBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #endif
@@ -80,7 +81,24 @@ orc_profile_stamp_tb(void)
 }
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
+#if defined(HAVE_ELF_AUX_INFO)
+static void
+orc_check_powerpc_elf_aux_info (void)
+{
+  unsigned long hwcap = 0;
+  unsigned long hwcap2 = 0;
+
+  elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
+  elf_aux_info(AT_HWCAP2, &hwcap2, sizeof(hwcap2));
+
+  if (hwcap & PPC_FEATURE_HAS_ALTIVEC)
+    orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_ALTIVEC;
+  if (hwcap & PPC_FEATURE_HAS_VSX)
+    orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_VSX;
+  if (hwcap2 & PPC_FEATURE2_ARCH_2_07)
+    orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_V207;
+}
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
 #if defined(__APPLE__)
 #define SYSCTL "hw.vectorunit"
 #elif defined(__NetBSD__)
@@ -238,7 +256,9 @@ powerpc_detect_cpu_flags (void)
   if (inited) return;
   inited = 1;
 
-#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__APPLE__) || defined(__NetBSD__)
+#if defined(HAVE_ELF_AUX_INFO)
+  orc_check_powerpc_elf_aux_info();
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
   orc_check_powerpc_sysctl_bsd();
 #elif defined(__OpenBSD__)
   orc_check_powerpc_sysctl_openbsd();

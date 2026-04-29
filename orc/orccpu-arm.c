@@ -44,7 +44,7 @@
 #include <sys/time.h>
 #endif
 #include <time.h>
-#ifdef HAVE_GETAUXVAL
+#if defined(HAVE_GETAUXVAL) || defined(HAVE_ELF_AUX_INFO)
 #include <sys/auxv.h>
 #elif defined(__linux__)
 #include <linux/auxvec.h>
@@ -85,7 +85,28 @@ orc_profile_stamp_xscale(void)
 }
 #endif
 
-#ifdef HAVE_GETAUXVAL
+#ifdef HAVE_ELF_AUX_INFO
+static unsigned long
+orc_check_neon_elf_aux_info (void)
+{
+  unsigned long flags = 0;
+  unsigned long auxv = 0;
+
+  elf_aux_info(AT_HWCAP, &auxv, sizeof(auxv));
+
+#ifdef __arm__
+  if (auxv & HWCAP_NEON)
+    flags |= ORC_TARGET_NEON_NEON;
+  if (auxv & HWCAP_EDSP)
+    flags |= ORC_TARGET_ARM_EDSP;
+#elif defined(__aarch64__)
+  if (auxv & HWCAP_ASIMD)
+    flags |= ORC_TARGET_NEON_NEON | ORC_TARGET_ARM_EDSP;
+#endif
+
+  return flags;
+}
+#elif defined(HAVE_GETAUXVAL)
 static unsigned long
 orc_check_neon_getauxval (void)
 {
@@ -222,7 +243,9 @@ orc_arm_get_cpu_flags (void)
 {
   unsigned long neon_flags = 0;
 
-#ifdef HAVE_GETAUXVAL
+#ifdef HAVE_ELF_AUX_INFO
+  neon_flags = orc_check_neon_elf_aux_info ();
+#elif defined(HAVE_GETAUXVAL)
   neon_flags = orc_check_neon_getauxval ();
 #elif defined(__linux__)
   neon_flags = orc_check_neon_proc_auxv ();
@@ -242,5 +265,3 @@ orc_arm_get_cpu_flags (void)
   return neon_flags;
 }
 #endif
-
-
