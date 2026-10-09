@@ -1,4 +1,4 @@
-project ('orc', 'c', version : '0.4.42.1',
+project ('orc', 'c', version : '0.4.44.1',
                      meson_version : '>= 1.3.0',
                      default_options : ['buildtype=debugoptimized',
                                         'warning_level=1'] )
@@ -36,13 +36,18 @@ if cc.has_link_argument('-Wl,-Bsymbolic-functions')
   add_project_link_arguments('-Wl,-Bsymbolic-functions', language : 'c')
 endif
 
-all_targets = ['avx512', 'avx', 'sse', 'mmx']
+all_targets = ['avx', 'sse', 'mmx']
 extra_targets = ['altivec', 'neon', 'mips', 'c64x', 'riscv', 'lsx', 'lasx'] # 'arm'
 enabled_targets = []
 
 host_system = host_machine.system()
 if host_system != 'windows'
   all_targets += extra_targets
+endif
+
+# Filter out avx512 if the host machine is x86
+if host_machine.cpu_family() != 'x86'
+  all_targets += ['avx512']
 endif
 
 # To be removed once the orc-target option becomes mainstream
@@ -85,6 +90,14 @@ elif cpu_family.startswith('loongarch')
   cdata.set('HAVE_LOONGARCH', true)
 else
   warning(cpu_family + ' with ' + host_system + ' isn\'t a supported configuration for optimization')
+endif
+
+# Ensure that on e.g. Debian the compiler roundtrips floats correctly
+# to/from the x87 registers
+# See https://gitlab.freedesktop.org/gstreamer/orc/-/work_items/113
+# See https://stackoverflow.com/a/74730646
+if cc.get_id() == 'gcc' and cpu_family == 'x86'
+  add_project_arguments('-fexcess-precision=standard', language : 'c')
 endif
 
 threads = dependency('threads')
@@ -143,7 +156,7 @@ if host_os == 'windows'
   # Windows SDK 10.0.22621.0. A simple check is to validate if it's usable.
   if cc.has_function('RtlAddFunctionTable', prefix: '#include <windows.h>') \
     and cc.has_function('RtlLookupFunctionEntry', prefix: '#include <windows.h>') \
-    and cc.has_function('RtlDeleteFunctionTable', prefix: '#include <windows.h>') 
+    and cc.has_function('RtlDeleteFunctionTable', prefix: '#include <windows.h>')
     cdata.set('ORC_SUPPORTS_BACKTRACE_FROM_JIT', true)
   endif
 else
@@ -177,6 +190,41 @@ cdata.set('HAVE_ELF_AUX_INFO', cc.has_function('elf_aux_info', prefix : '#includ
 cdata.set('HAVE_SYS_TIME_H', cc.has_header('sys/time.h'))
 cdata.set('HAVE_UNISTD_H', cc.has_header('unistd.h'))
 cdata.set('HAVE_VALGRIND_VALGRIND_H', cc.has_header('valgrind/valgrind.h'))
+
+if host_os == 'linux'
+
+if cpu_family == 'mips'
+  linux_mips_test = '''
+  #include <sys/auxv.h>
+  #include <asm/hwcap.h>
+  int main() {
+    unsigned long auxv = HWCAP_MIPS_DSP2;
+  }
+  '''
+  cdata.set('HAVE_GETAUXVAL_MIPS', cc.compiles(linux_mips_test, name: 'Supports getauxval on MIPS'))
+endif
+
+if cpu_family.startswith('riscv')
+  linux_riscv_test = '''
+  #include <sys/auxv.h>
+  #include <sys/hwprobe.h>
+  #include <asm/hwcap.h>
+  #include <asm/hwprobe.h>
+  #include <asm/unistd.h>
+  int main() {
+    struct riscv_hwprobe pair[] = {
+      { RISCV_HWPROBE_KEY_IMA_EXT_0, 0},
+    };
+    if (__riscv_hwprobe(pair, 1, 0, NULL, 0) < 0)
+      return 0;
+    if (pair[0].value & RISCV_HWPROBE_IMA_V) {}
+    return 0;
+  }
+  '''
+  cdata.set('HAVE_HWPROBE_GETAUXVAL', cc.compiles(linux_riscv_test, name: 'Supports hwprobe and getauxval on RISC-V'))
+endif
+
+endif
 
 cdata.set_quoted('PACKAGE_VERSION', meson.project_version())
 cdata.set_quoted('VERSION', meson.project_version())

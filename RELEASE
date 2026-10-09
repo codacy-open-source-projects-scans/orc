@@ -1,3 +1,30 @@
+0.4.44
+======
+
+ - Fix various i386-related regressions
+ - avx512: Disable target on x86 (L. E. Segovia)
+ - avx512: Implement the missing memoff-reg moves (Jorge Zapata, Marc Leeman)
+ - Fix Debian gcc miscompiling the backup float conversion functions (L. E. Segovia)
+
+Details: https://gitlab.freedesktop.org/gstreamer/orc/-/milestones/16
+
+0.4.43
+======
+
+ - Add AVX512 support (Jorge Zapata)
+ - neon: add divluw rule (used in GStreamer's compositor, videomixer, gaudieffects and alpha-blending code paths) (Jeongkeun Kim)
+ - neon: add mulslq, mululq rules, shlq, shrsq, shruq (used in GStreamer's audio processing element) (Jeongkeun Kim)
+ - orccodemem: Invalidate code chunks when recycling for QEMU (Jorge Zapata)
+ - orcprogram-c: Allow negative constants (Carlos Falgueras García)
+ - arm, neon: Split ARM and NEON logic into 32b and 64b (Carlos Falgueras García)
+ - RISC-V: many fixes and enhancements, including some new rules (Felix Gong, Yao Zi, Brad Smith)
+ - LoongArch: various fixes and enhancements (Jin Bo)
+ - OpenBSD/FreeBSD improvements (Brad Smith)
+ - Miscellaneous fixes (Brad Smith, Jorge Zapata)
+ - ci fixes (Jorge Zapata, L. E. Segovia, Tim-Philipp Müller)
+
+Details: https://gitlab.freedesktop.org/gstreamer/orc/-/milestones/15
+
 0.4.42
 ======
 

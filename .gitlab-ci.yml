@@ -410,7 +410,7 @@ android armv7 cross:
     CLANG_ARCH: 'armv7a'
     ANDROID_HOST: 'androideabi'
 
-alpine 3.21 loongarch64:
+alpine edge loongarch64:
   stage: build
   needs:
     - "trigger"
@@ -419,8 +419,54 @@ alpine 3.21 loongarch64:
   when: 'manual'
   allow_failure: true
   script:
-    - apk add git build-base linux-headers meson
-    - meson setup $MESON_ARGS build/
+    - apk add git build-base linux-headers meson clang mold
+    - env CC=clang CXX=clang++ LD=mold meson setup $MESON_ARGS build/
+    - meson compile --verbose -C build/
+    - meson test -C build/
+    - ORC_DEBUG=2 ./build/tools/orc-bugreport
+    - meson install -C build/
+  artifacts:
+    name: "${CI_JOB_NAME}_${CI_COMMIT_SHA}"
+    expire_in: '5 days'
+    when: 'always'
+    paths:
+      - "build/meson-logs/*txt"
+      - "build/*.bin"
+      - "build/*.S"
+
+alpine 3.24 armv7:
+  stage: build
+  image: alpine:3.24
+  needs:
+    - "trigger"
+  tags:
+    - 'orc-alpine-armv7'
+  script:
+    - apk add git build-base linux-headers meson clang mold
+    - env CC=clang CXX=clang++ LD=mold meson setup $MESON_ARGS build/
+    - meson compile --verbose -C build/
+    - meson test -C build/
+    - ORC_DEBUG=2 ./build/tools/orc-bugreport
+    - meson install -C build/
+  artifacts:
+    name: "${CI_JOB_NAME}_${CI_COMMIT_SHA}"
+    expire_in: '5 days'
+    when: 'always'
+    paths:
+      - "build/meson-logs/*txt"
+      - "build/*.bin"
+      - "build/*.S"
+
+alpine 3.23 riscv64:
+  stage: build
+  image: alpine:3.23
+  needs:
+    - "trigger"
+  tags:
+    - 'orc-alpine-riscv64'
+  script:
+    - apk add git build-base linux-headers meson clang mold
+    - env CC=clang CXX=clang++ LD=mold meson setup $MESON_ARGS build/
     - meson compile --verbose -C build/
     - meson test -C build/
     - ORC_DEBUG=2 ./build/tools/orc-bugreport
@@ -442,7 +488,7 @@ pages ci:
       meson
       ninja-build
       build-essential
-      pipx
+      python3-venv
       python3-dev
       libxml2-dev
       libxslt1-dev
@@ -462,8 +508,17 @@ pages ci:
   before_script:
     - apt-get update
     - apt-get install --yes ${DEPENDENCIES}
-    - export PATH="$HOME/.local/bin:$PATH"
-    - pipx install hotdoc
+    # https://github.com/hotdoc/hotdoc/issues/328
+    # hotdoc's bootstrap theme passes hotdoc/less into the theme subproject via
+    # depend_files, which Meson 1.12+ rejects as a subproject sandbox violation.
+    # pip's build isolation would pull the latest Meson, so pin Meson <1.12 and
+    # install hotdoc without build isolation (its runtime deps are installed
+    # first so the sdist can build).
+    - python3 -m venv /tmp/hotdoc-venv
+    - /tmp/hotdoc-venv/bin/pip install "meson>=1.0,<1.12" "meson-python>=0.14" ninja
+    - /tmp/hotdoc-venv/bin/pip install pkgconfig "lxml>=5.4" "PyYAML>=6.0.2" "schema>=0.7.7" "toposort>=1.10" "wheezy.template>=3.2.3" "appdirs>=1.4.4" "feedgen>=1.0.0" "networkx>=3.4" "dbus-deviation>=0.6.1"
+    - /tmp/hotdoc-venv/bin/pip install --no-build-isolation "hotdoc~=0.18.0"
+    - export PATH="/tmp/hotdoc-venv/bin:$PATH"
   script:
     - meson setup $MESON_ARGS build/
     - ninja -C build/ doc/orc-doc || true

@@ -23,6 +23,7 @@ static void orc_neon32_emit_loadib (OrcCompiler *compiler, OrcVariable *dest, in
 static void orc_neon32_emit_loadiw (OrcCompiler *compiler, OrcVariable *dest, int param);
 static void orc_neon32_emit_loadiq (OrcCompiler *compiler, OrcVariable *dest, long long param);
 static void orc_neon32_emit_loadpq (OrcCompiler *compiler, int dest, int param);
+static void orc_neon32_emit_mov_is_quad (OrcCompiler *p, int is_quad, OrcVariable d, OrcVariable s);
 
 const OrcNeonInsn orc_neon32_insns[_ORC_NEON_OP_MAX_] = {
   [ORC_NEON_OP_ABSB]      = { "vabs.s8"     ,0xf3b10300, 3 },
@@ -139,6 +140,8 @@ const OrcNeonInsn orc_neon32_insns[_ORC_NEON_OP_MAX_] = {
   [ORC_NEON_OP_MULUBW]    = { "vmull.u8"    ,0xf3800c00, 3 },
   [ORC_NEON_OP_MULSWL]    = { "vmull.s16"   ,0xf2900c00, 2 },
   [ORC_NEON_OP_MULUWL]    = { "vmull.u16"   ,0xf3900c00, 2 },
+  [ORC_NEON_OP_MULSLQ]    = { "vmull.s32"   ,0xf2a00c00, 1 },
+  [ORC_NEON_OP_MULULQ]    = { "vmull.u32"   ,0xf3a00c00, 1 },
   [ORC_NEON_OP_SWAPW]     = { "vrev16.i8"   ,0xf3b00100, 2 },
   [ORC_NEON_OP_SWAPL]     = { "vrev32.i8"   ,0xf3b00080, 1 },
   [ORC_NEON_OP_SWAPQ]     = { "vrev64.i8"   ,0xf3b00000, 0 },
@@ -1228,7 +1231,10 @@ static const ShiftInfo immshift_info_32[] = {
   { 0xf3900010, "vshr.u16", TRUE, 16, 2 },
   { 0xf2a00510, "vshl.i32", FALSE, 32, 1 },
   { 0xf2a00010, "vshr.s32", TRUE, 32, 1 },
-  { 0xf3a00010, "vshr.u32", TRUE, 32, 1 }
+  { 0xf3a00010, "vshr.u32", TRUE, 32, 1 },
+  { 0xf2800590, "vshl.i64", FALSE, 64, 0 }, /* shlq */
+  { 0xf2800090, "vshr.s64", TRUE, 64, 0 },  /* shrsq */
+  { 0xf3800090, "vshr.u64", TRUE, 64, 0 }   /* shruq */
 };
 
 static const ShiftInfo regshift_info_32[] = {
@@ -1240,7 +1246,10 @@ static const ShiftInfo regshift_info_32[] = {
   { 0xf3100400, "vshl.u16", TRUE, 0, 2 },
   { 0xf3200400, "vshl.u32", FALSE, 0, 1 },
   { 0xf2200400, "vshl.s32", TRUE, 0, 1 },
-  { 0xf3200400, "vshl.u32", TRUE, 0, 1 }
+  { 0xf3200400, "vshl.u32", TRUE, 0, 1 },
+  { 0xf3300400, "vshl.u64", FALSE, 0, 0 }, /* shlq */
+  { 0xf2300400, "vshl.s64", TRUE, 0, 0 },  /* shrsq */
+  { 0xf3300400, "vshl.u64", TRUE, 0, 0 }   /* shruq */
 };
 
 void
@@ -1256,6 +1265,15 @@ orc_neon32_emit_shift (OrcCompiler *const p, int type,
   }
   if (shift >= immshift_info_32[type].bits) {
     ORC_COMPILER_ERROR(p, "shift too large");
+    return;
+  }
+
+  if (shift == 0 && immshift_info_32[type].negate) {
+    /* Same reasoning as orc_neon64_emit_shift: the ARMv7 immediate
+     * right-shift encoding cannot represent shift=0. */
+    if (dest->alloc != src->alloc) {
+      orc_neon32_emit_mov_is_quad (p, is_quad, *dest, *src);
+    }
     return;
   }
 
@@ -1343,6 +1361,100 @@ orc_neon32_rule_andn (OrcCompiler *p, void *user, OrcInstruction *insn)
         p->vars[insn->src_args[1]].alloc,
         p->vars[insn->src_args[0]].alloc);
   }
+}
+
+static void
+orc_neon32_emit_binary_is_quad (OrcCompiler *p, int is_quad, const char *name,
+    unsigned int code, OrcVariable d, OrcVariable s1, OrcVariable s2)
+{
+  if (is_quad)
+    orc_neon32_emit_binary_quad (p, name, code, d.alloc, s1.alloc, s2.alloc);
+  else
+    orc_neon32_emit_binary (p, name, code, d.alloc, s1.alloc, s2.alloc);
+}
+
+static void
+orc_neon32_emit_mov_is_quad (OrcCompiler *p, int is_quad, OrcVariable d, OrcVariable s)
+{
+  if (is_quad)
+    orc_neon32_emit_mov_quad (p, d, s);
+  else
+    orc_neon32_emit_mov (p, d, s);
+}
+
+void
+orc_neon32_rule_divluw (OrcCompiler *p, void *user, OrcInstruction *insn)
+{
+  OrcVariable *src0 = p->vars + insn->src_args[0];
+  OrcVariable *src1 = p->vars + insn->src_args[1];
+  OrcVariable *dest = p->vars + insn->dest_args[0];
+  const int max_shift = 2; /* word width, matches ANDW/XORW/SUBW/CMPGTSW table entries */
+  const int is_quad = p->insn_shift > max_shift;
+  const int saved_min_temp_reg = p->min_temp_reg;
+  int i;
+
+  /* get_temp_reg() scans from min_temp_reg for the first free register, GP
+   * or vector — altivec/mips/x86 bound this to the vector class via
+   * orc_compiler_reset_temp_regs() once per instruction; neon never does,
+   * so it stays at its GP-range default. Bound it here for these calls. */
+  p->min_temp_reg = ORC_VEC_REG_BASE;
+
+  OrcVariable a       = { .alloc = orc_compiler_get_temp_reg (p), .size = 2 };
+  OrcVariable j       = { .alloc = orc_compiler_get_temp_reg (p), .size = 2 };
+  OrcVariable j2      = { .alloc = orc_compiler_get_temp_reg (p), .size = 2 };
+  OrcVariable l       = { .alloc = orc_compiler_get_temp_reg (p), .size = 2 };
+  OrcVariable divisor = { .alloc = orc_compiler_get_temp_reg (p), .size = 2 };
+
+  p->min_temp_reg = saved_min_temp_reg;
+
+  /* orc_compiler_get_constant() dispatches through the x86-only
+   * target->load_constant_long vtable slot, which the neon target does not
+   * populate (NULL) — calling it here crashes at codegen time. Load these
+   * word-splat immediates the same way the existing loadiw-based rules do
+   * on NEON32. */
+  orc_neon32_emit_loadiw (p, &a, 0x00ff); /* quotient accumulator seed */
+  orc_neon32_emit_loadiw (p, &j, 0x0080); /* moving bit-position marker */
+
+  /* dest = src0 (register copy) */
+  if (src0->alloc != dest->alloc) {
+    orc_neon32_emit_mov_is_quad (p, is_quad, *dest, *src0);
+  }
+
+  /* divisor = (src1 << 8) >> 1 : aligns the divisor to bit 7 of each 16-bit lane */
+  orc_neon32_emit_shift (p, 3 /* shlw */, &divisor, src1, 8, is_quad);
+  orc_neon32_emit_shift (p, 5 /* shruw */, &divisor, &divisor, 1, is_quad);
+
+  for (i = 0; i < 7; i++) {
+    orc_neon32_emit_mov_is_quad (p, is_quad, l, divisor);                          /* l = divisor */
+    orc_neon32_emit_binary_is_quad (p, is_quad, "vcgt.u16", 0xf3100300, l, l, *dest); /* l = (l > dest) ? -1 : 0, unsigned */
+    orc_neon32_emit_mov_is_quad (p, is_quad, j2, l);                               /* j2 = l */
+    orc_neon32_emit_binary_is_quad (p, is_quad, "vbic", 0xf2100110, l, divisor, l); /* l = (~l) & divisor */
+    orc_neon32_emit_binary_is_quad (p, is_quad, "vsub.i16", 0xf3100800, *dest, *dest, l); /* dest -= l */
+    orc_neon32_emit_shift (p, 5 /* shruw */, &divisor, &divisor, 1, is_quad);       /* divisor >>= 1 */
+
+    orc_neon32_emit_binary_is_quad (p, is_quad, "vand", 0xf2000110, j2, j2, j);     /* j2 &= j */
+    orc_neon32_emit_binary_is_quad (p, is_quad, "veor", 0xf3000110, a, a, j2);      /* a ^= j2 */
+    orc_neon32_emit_shift (p, 5 /* shruw */, &j, &j, 1, is_quad);                   /* j >>= 1 */
+  }
+
+  /* Final LSB correction (SSE orcrules-sse.c:1358-1364) — see
+   * orc_neon64_rule_divluw's identical epilogue comment for why this extra
+   * round (no further divisor/j shift) is required and not optional. */
+  orc_neon32_emit_mov_is_quad (p, is_quad, l, divisor);                            /* l = divisor */
+  orc_neon32_emit_binary_is_quad (p, is_quad, "vcgt.u16", 0xf3100300, l, l, *dest); /* l = (l > dest) ? -1 : 0, unsigned */
+  orc_neon32_emit_binary_is_quad (p, is_quad, "vand", 0xf2000110, l, l, j);         /* l &= j */
+  orc_neon32_emit_binary_is_quad (p, is_quad, "veor", 0xf3000110, a, a, l);         /* a ^= l */
+
+  orc_neon32_emit_mov_is_quad (p, is_quad, *dest, a);                              /* dest = a */
+
+  /* release all 5 temp regs — SSE's sse_rule_divluw releases its 5 the same
+   * way (orcrules-sse.c:1365-1369); orc's ARM/NEON program driver never
+   * resets temp regs automatically, so skipping this leaks them. */
+  orc_compiler_release_temp_reg (p, a.alloc);
+  orc_compiler_release_temp_reg (p, j.alloc);
+  orc_compiler_release_temp_reg (p, j2.alloc);
+  orc_compiler_release_temp_reg (p, l.alloc);
+  orc_compiler_release_temp_reg (p, divisor.alloc);
 }
 
 void

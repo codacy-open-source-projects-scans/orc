@@ -223,6 +223,25 @@ orc_code_chunk_free (OrcCodeChunk *chunk)
     return;
   }
 
+  /* On emulators (QEMU user-mode), CPU cache flushes like __clear_cache()
+   * don't invalidate the emulator's internal translation block cache.
+   * When this chunk is recycled and shorter code overwrites longer code,
+   * stale cached translations for addresses in the old code can cause
+   * crashes.  Force full invalidation by toggling execute permission.
+   * On real hardware this is a harmless no-op. */
+#if defined(HAVE_CODEMEM_MMAP) && defined(__linux__)
+  {
+    void *exec = ORC_PTR_OFFSET(chunk->region->exec_ptr, chunk->offset);
+    long page_size = sysconf(_SC_PAGESIZE);
+    unsigned long page = (unsigned long)exec & ~(page_size - 1);
+    size_t len = chunk->size + ((unsigned long)exec - page);
+    len = (len + page_size - 1) & ~(page_size - 1);
+
+    mprotect((void *)page, len, PROT_READ | PROT_WRITE);
+    mprotect((void *)page, len, PROT_READ | PROT_EXEC);
+  }
+#endif
+
   orc_global_mutex_lock ();
   chunk->used = FALSE;
   if (chunk->next && !chunk->next->used) {

@@ -32,7 +32,7 @@
 #include <orc/orcinternal.h>
 #include <orc/loongarch/orcloongarch.h>
 
-#if defined(__linux__)
+#ifdef HAVE_GETAUXVAL
 #include <sys/auxv.h>
 #endif
 
@@ -72,19 +72,37 @@ orc_loongarch_reg_name (OrcLoongRegister reg)
   return names[reg];
 }
 
+#ifdef HAVE_GETAUXVAL
+static orc_uint32
+orc_check_loongarch_getauxval (void)
+{
+  orc_uint32 flags = 0;
+  unsigned long auxv;
+
+  auxv = getauxval(AT_HWCAP);
+
+  if (auxv & LA_HWCAP_LSX)
+      flags |= ORC_TARGET_LOONGARCH_LSX;
+  if (auxv & LA_HWCAP_LASX)
+      flags |= ORC_TARGET_LOONGARCH_LASX;
+
+  return flags;
+}
+#endif
+
 orc_uint32
 orc_loongarch_get_cpu_flags (void)
 {
   orc_uint32 flags = 0;
-#if __linux__
-  orc_uint32 flag = getauxval(AT_HWCAP);
 
-  if (flag & LA_HWCAP_LSX)
-      flags |= ORC_TARGET_LOONGARCH_LSX;
-
-  if (flag & LA_HWCAP_LASX)
-      flags |= ORC_TARGET_LOONGARCH_LASX;
+#if defined(__loongarch64)
+  flags |= ORC_TARGET_LOONGARCH_64BIT;
 #endif
+
+#ifdef HAVE_GETAUXVAL
+  flags |= orc_check_loongarch_getauxval ();
+#endif
+
   return flags;
 }
 
@@ -109,11 +127,11 @@ orc_loongarch_target_get_default_flags (void)
 {
   orc_uint32 flags = 0;
 
-  flags |= orc_loongarch_get_cpu_flags ();
-
 #if defined(__loongarch64)
   flags |= ORC_TARGET_LOONGARCH_64BIT;
 #endif
+
+  flags |= orc_loongarch_get_cpu_flags ();
 
   if (orc_compiler_is_debug ()) {
     flags |= ORC_TARGET_LOONGARCH_FRAME_POINTER;

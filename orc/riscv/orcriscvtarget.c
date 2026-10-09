@@ -39,11 +39,29 @@
 #include <orc/riscv/orcriscv-internal.h>
 
 #include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <ctype.h>
 
-#if defined(HAVE_RISCV) && defined(__linux__)
+#if defined(HAVE_ELF_AUX_INFO) || defined(HAVE_HWPROBE_GETAUXVAL) || defined(HAVE_GETAUXVAL)
+#include <sys/auxv.h>
+#endif
+
+#ifdef HAVE_HWPROBE_GETAUXVAL
+#include <sys/hwprobe.h>
+#include <asm/hwcap.h>
+#include <asm/hwprobe.h>
+#include <asm/unistd.h>
+#elif defined(HAVE_GETAUXVAL) && defined(__riscv)
+#include <asm/hwcap.h>
+#endif
+
+#if defined(HAVE_GETAUXVAL) || defined(__linux__)
+#include <string.h>
+#include <fcntl.h>
+#include <ctype.h>
+#endif
+
+#if defined(HAVE_RISCV)
+
+#if defined(HAVE_GETAUXVAL) || defined(__linux__)
 static int
 orc_riscv_target_detect_extension (const char *exts, const char *ext)
 {
@@ -69,50 +87,163 @@ orc_riscv_target_detect_extension (const char *exts, const char *ext)
 }
 #endif
 
-#ifdef HAVE_RISCV
+#if defined(HAVE_ELF_AUX_INFO)
 static orc_uint32
-orc_riscv_target_get_cpu_flags (void)
+orc_check_riscv_elf_aux_info (void)
 {
-  orc_uint32 ret = 0;
-
-#if defined(__riscv_xlen) && __riscv_xlen == 64
-  ret |= ORC_TARGET_RISCV_64BIT;
+  unsigned long flags = 0;
+  unsigned long hwcap = 0;
+#ifdef HWCAP2_ISA_ZVBB
+  unsigned long hwcap2 = 0;
 #endif
 
-#ifdef __linux__
+  if (elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap)) != 0)
+    hwcap = 0;
+#ifdef HWCAP2_ISA_ZVBB
+  if (elf_aux_info(AT_HWCAP2, &hwcap2, sizeof(hwcap2)) != 0)
+    hwcap2 = 0;
+#endif
+
+  if (hwcap & HWCAP_ISA_C)
+    flags |= ORC_TARGET_RISCV_C;
+#ifdef HWCAP_ISA_V
+  if (hwcap & HWCAP_ISA_V)
+    flags |= ORC_TARGET_RISCV_V;
+#endif
+#ifdef HWCAP2_ISA_ZVBB
+  if (hwcap2 & HWCAP2_ISA_ZVBB)
+    flags |= ORC_TARGET_RISCV_ZVBB;
+#endif
+
+  return flags;
+}
+#elif defined(HAVE_HWPROBE_GETAUXVAL)
+static orc_uint32
+orc_check_riscv_hwprobe_getauxval (void)
+{
+  unsigned long flags = 0;
+  struct riscv_hwprobe pair[] = {
+    { RISCV_HWPROBE_KEY_IMA_EXT_0, 0},
+  };
+
+  if (__riscv_hwprobe(pair, 1, 0, NULL, 0) < 0)
+    return 0;
+
+  if (pair[0].value & RISCV_HWPROBE_IMA_C)
+    flags |= ORC_TARGET_RISCV_C;
+  if (getauxval (AT_HWCAP) & COMPAT_HWCAP_ISA_V) {
+    if (pair[0].value & RISCV_HWPROBE_IMA_V)
+      flags |= ORC_TARGET_RISCV_V;
+  }
+#ifdef RISCV_HWPROBE_EXT_ZVKB
+  if (pair[0].value & RISCV_HWPROBE_EXT_ZVKB)
+    flags |= ORC_TARGET_RISCV_ZVKB;
+#endif
+#ifdef RISCV_HWPROBE_EXT_ZVBB
+  if (pair[0].value & RISCV_HWPROBE_EXT_ZVBB)
+    flags |= ORC_TARGET_RISCV_ZVBB;
+#endif
+
+  /* ORC_TARGET_RISCV_ZVKN */
+  /* ORC_TARGET_RISCV_ZVKS */
+
+  return flags;
+}
+#elif defined(HAVE_GETAUXVAL)
+static orc_uint32
+orc_check_riscv_getauxval (void)
+{
+  orc_uint32 flags = 0;
+  unsigned long hwcap = getauxval (AT_HWCAP);
+
+  if (hwcap & COMPAT_HWCAP_ISA_C)
+    flags |= ORC_TARGET_RISCV_C;
+  if (hwcap & COMPAT_HWCAP_ISA_V)
+    flags |= ORC_TARGET_RISCV_V;
+
+  /* Other extensions (ZVKB, ZVBB, ZVKN, ZVKS) have no hwcap bits,
+   * fall back to parsing /proc/cpuinfo */
   char *cpuinfo = get_proc_cpuinfo ();
+  if (cpuinfo) {
+    char *cpuinfo_line = get_tag_value (cpuinfo, "isa");
+    if (cpuinfo_line) {
+      if (orc_riscv_target_detect_extension (cpuinfo_line, "zvkb"))
+        flags |= ORC_TARGET_RISCV_ZVKB;
+      if (orc_riscv_target_detect_extension (cpuinfo_line, "zvbb"))
+        flags |= ORC_TARGET_RISCV_ZVBB;
+      if (orc_riscv_target_detect_extension (cpuinfo_line, "zvkn"))
+        flags |= ORC_TARGET_RISCV_ZVKN;
+      if (orc_riscv_target_detect_extension (cpuinfo_line, "zvks"))
+        flags |= ORC_TARGET_RISCV_ZVKS;
+      free (cpuinfo_line);
+    }
+    free (cpuinfo);
+  }
+
+  return flags;
+}
+#elif defined(__linux__)
+static orc_uint32
+orc_check_riscv_proc_cpuinfo (void)
+{
+  unsigned long flags = 0;
+  char *cpuinfo;
+  char *cpuinfo_line;
+
+  cpuinfo = get_proc_cpuinfo ();
   if (cpuinfo == NULL) {
     ORC_DEBUG ("Failed to read /proc/cpuinfo");
     return 0;
   }
 
-  char *cpuinfo_line = get_tag_value (cpuinfo, "isa");
+  cpuinfo_line = get_tag_value (cpuinfo, "isa");
   if (cpuinfo_line) {
     if (orc_riscv_target_detect_extension (cpuinfo_line, "c"))
-      ret |= ORC_TARGET_RISCV_C;
-
+      flags |= ORC_TARGET_RISCV_C;
     if (orc_riscv_target_detect_extension (cpuinfo_line, "v"))
-      ret |= ORC_TARGET_RISCV_V;
-
+      flags |= ORC_TARGET_RISCV_V;
     if (orc_riscv_target_detect_extension (cpuinfo_line, "zvkb"))
-      ret |= ORC_TARGET_RISCV_ZVKB;
-
+      flags |= ORC_TARGET_RISCV_ZVKB;
     if (orc_riscv_target_detect_extension (cpuinfo_line, "zvbb"))
-      ret |= ORC_TARGET_RISCV_ZVBB;
-
+      flags |= ORC_TARGET_RISCV_ZVBB;
     if (orc_riscv_target_detect_extension (cpuinfo_line, "zvkn"))
-      ret |= ORC_TARGET_RISCV_ZVKN;
-
+      flags |= ORC_TARGET_RISCV_ZVKN;
     if (orc_riscv_target_detect_extension (cpuinfo_line, "zvks"))
-      ret |= ORC_TARGET_RISCV_ZVKS;
+      flags |= ORC_TARGET_RISCV_ZVKS;
 
     free (cpuinfo_line);
   }
-#endif
 
-  return ret;
+  free (cpuinfo);
+
+  return flags;
 }
 #endif
+#endif // HAVE_RISCV
+
+static orc_uint32
+orc_riscv_target_get_cpu_flags (void)
+{
+  orc_uint32 flags = 0;
+
+#if defined(__riscv_xlen) && __riscv_xlen == 64
+  flags |= ORC_TARGET_RISCV_64BIT;
+#endif
+
+#if defined(HAVE_RISCV)
+#if defined(HAVE_ELF_AUX_INFO)
+  flags |= orc_check_riscv_elf_aux_info ();
+#elif defined(HAVE_HWPROBE_GETAUXVAL)
+  flags |= orc_check_riscv_hwprobe_getauxval ();
+#elif defined(HAVE_GETAUXVAL)
+  flags |= orc_check_riscv_getauxval ();
+#elif defined(__linux__)
+  flags |= orc_check_riscv_proc_cpuinfo ();
+#endif
+#endif // HAVE_RISCV
+
+  return flags;
+}
 
 static void
 orc_riscv_target_flush_cache (OrcCode *code)
@@ -136,15 +267,15 @@ orc_riscv_target_flush_cache (OrcCode *code)
 static orc_uint32
 orc_riscv_target_get_default_flags (void)
 {
-#if defined(HAVE_RISCV) && defined(__linux__)
-  return orc_riscv_target_get_cpu_flags ();
-#else
-  orc_uint32 ret = 0;
+  orc_uint32 flags = 0;
+
 #if defined(__riscv_xlen) && __riscv_xlen == 64
-  ret |= ORC_TARGET_RISCV_64BIT;
+  flags |= ORC_TARGET_RISCV_64BIT;
 #endif
-  return ret;
-#endif
+
+  flags |= orc_riscv_target_get_cpu_flags ();
+
+  return flags;
 }
 
 static OrcTarget orc_riscv_target = {

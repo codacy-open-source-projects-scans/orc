@@ -71,16 +71,6 @@
 /***** powerpc *****/
 int orc_powerpc_cpu_flags;
 
-#if 0
-static unsigned long
-orc_profile_stamp_tb(void)
-{
-  unsigned long ts;
-  __asm__ __volatile__("mftb %0\n" : "=r" (ts));
-  return ts;
-}
-#endif
-
 #if defined(HAVE_ELF_AUX_INFO)
 static void
 orc_check_powerpc_elf_aux_info (void)
@@ -88,8 +78,10 @@ orc_check_powerpc_elf_aux_info (void)
   unsigned long hwcap = 0;
   unsigned long hwcap2 = 0;
 
-  elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
-  elf_aux_info(AT_HWCAP2, &hwcap2, sizeof(hwcap2));
+  if (elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap)) != 0)
+    hwcap = 0;
+  if (elf_aux_info(AT_HWCAP2, &hwcap2, sizeof(hwcap2)) != 0)
+    hwcap2 = 0;
 
   if (hwcap & PPC_FEATURE_HAS_ALTIVEC)
     orc_powerpc_cpu_flags |= ORC_TARGET_POWERPC_ALTIVEC;

@@ -73,17 +73,6 @@
 /***** arm *****/
 
 #if defined (__arm__) || defined (__aarch64__) || defined (_M_ARM64)
-#if 0
-static unsigned long
-orc_profile_stamp_xscale(void)
-{
-  unsigned int ts;
-  __asm__ __volatile__ (
-      "  mrc p14, 0, %0, c1, c0, 0 \n"
-      : "=r" (ts));
-  return ts;
-}
-#endif
 
 #ifdef HAVE_ELF_AUX_INFO
 static unsigned long
@@ -92,7 +81,8 @@ orc_check_neon_elf_aux_info (void)
   unsigned long flags = 0;
   unsigned long auxv = 0;
 
-  elf_aux_info(AT_HWCAP, &auxv, sizeof(auxv));
+  if (elf_aux_info(AT_HWCAP, &auxv, sizeof(auxv)) != 0)
+    auxv = 0;
 
 #ifdef __arm__
   if (auxv & HWCAP_NEON)
@@ -174,23 +164,14 @@ orc_check_neon_proc_auxv (void)
 
   return flags;
 }
-#endif
 
-#ifndef HAVE_GETAUXVAL
 static unsigned long
-orc_cpu_arm_getflags_cpuinfo ()
+orc_check_neon_proc_cpuinfo ()
 {
-  unsigned long ret = 0;
-
-#if defined (_WIN32) && defined (_M_ARM64)
-  /* On Windows, for desktop applications, we are on always on ARMv8 (aarch64)*/
-  ret = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
-#elif defined (__APPLE__) && defined (__arm64__) && TARGET_OS_OSX
-  ret = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
-#elif defined(__linux__)
+  unsigned long flags = 0;
   char *cpuinfo;
   char *cpuinfo_line;
-  char **flags;
+  char **entries;
   char **f;
 
   cpuinfo = get_proc_cpuinfo();
@@ -205,7 +186,7 @@ orc_cpu_arm_getflags_cpuinfo ()
     if (arm_arch >= 8L) {
       /* Armv8 always supports these, but they won't be listed
        * in the CPU info optional features */
-      ret = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
+      flags = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
       goto out;
     }
 
@@ -218,23 +199,22 @@ orc_cpu_arm_getflags_cpuinfo ()
     return 0;
   }
 
-  flags = strsplit(cpuinfo_line, ' ');
-  for (f = flags; *f; f++) {
+  entries = strsplit(cpuinfo_line, ' ');
+  for (f = entries; *f; f++) {
     if (strcmp (*f, "edsp") == 0)
-      ret |= ORC_TARGET_ARM_EDSP;
+      flags |= ORC_TARGET_ARM_EDSP;
     else if (strcmp (*f, "neon") == 0)
-      ret |= ORC_TARGET_NEON_NEON;
+      flags |= ORC_TARGET_NEON_NEON;
     free (*f);
   }
 
-  free (flags);
+  free (entries);
 
 out:
   free (cpuinfo_line);
   free (cpuinfo);
-#endif
 
-  return ret;
+  return flags;
 }
 #endif
 
@@ -243,18 +223,21 @@ orc_arm_get_cpu_flags (void)
 {
   unsigned long neon_flags = 0;
 
-#ifdef HAVE_ELF_AUX_INFO
+#if defined (_WIN32) && defined (_M_ARM64)
+  /* On Windows, for desktop applications, we are on always on ARMv8 (aarch64)*/
+  neon_flags = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
+#elif defined (__APPLE__) && defined (__arm64__) && TARGET_OS_OSX
+  neon_flags = ORC_TARGET_ARM_EDSP | ORC_TARGET_NEON_NEON;
+#elif defined(HAVE_ELF_AUX_INFO)
   neon_flags = orc_check_neon_elf_aux_info ();
 #elif defined(HAVE_GETAUXVAL)
   neon_flags = orc_check_neon_getauxval ();
 #elif defined(__linux__)
   neon_flags = orc_check_neon_proc_auxv ();
-#endif
-#if !defined(HAVE_GETAUXVAL)
   if (!neon_flags) {
     /* On ARM, /proc/self/auxv might not be accessible.
      * Fall back to /proc/cpuinfo */
-    neon_flags = orc_cpu_arm_getflags_cpuinfo ();
+    neon_flags = orc_check_neon_proc_procinfo ();
   }
 #endif
 

@@ -192,6 +192,15 @@ orc_neon_rule_andn (OrcCompiler *p, void *user, OrcInstruction *insn)
     orc_neon32_rule_andn (p, user, insn);
 }
 
+static void
+orc_neon_rule_divluw (OrcCompiler *p, void *user, OrcInstruction *insn)
+{
+  if (p->is_64bit)
+    orc_neon64_rule_divluw (p, user, insn);
+  else
+    orc_neon32_rule_divluw (p, user, insn);
+}
+
 static const OrcNeonRule orc_neon_rules[] = {
   [ORC_NEON_OP_ABSB]      = { "absb"     , orc_neon_unary_rule        },
   [ORC_NEON_OP_ADDB]      = { "addb"     , orc_neon_binary_rule       },
@@ -307,6 +316,8 @@ static const OrcNeonRule orc_neon_rules[] = {
   [ORC_NEON_OP_MULUBW]    = { "mulubw"   , orc_neon_binary_long_rule  },
   [ORC_NEON_OP_MULSWL]    = { "mulswl"   , orc_neon_binary_long_rule  },
   [ORC_NEON_OP_MULUWL]    = { "muluwl"   , orc_neon_binary_long_rule  },
+  [ORC_NEON_OP_MULSLQ]    = { "mulslq"   , orc_neon_binary_long_rule  },
+  [ORC_NEON_OP_MULULQ]    = { "mululq"   , orc_neon_binary_long_rule  },
   [ORC_NEON_OP_SWAPW]     = { "swapw"    , orc_neon_unary_rule        },
   [ORC_NEON_OP_SWAPL]     = { "swapl"    , orc_neon_unary_rule        },
   [ORC_NEON_OP_SWAPQ]     = { "swapq"    , orc_neon_unary_rule        },
@@ -649,10 +660,15 @@ orc_compiler_neon_register_rules (OrcTarget *target)
   orc_rule_register (rule_set, "shll", orc_neon_rule_shift, (void *)6);
   orc_rule_register (rule_set, "shrsl", orc_neon_rule_shift, (void *)7);
   orc_rule_register (rule_set, "shrul", orc_neon_rule_shift, (void *)8);
+  orc_rule_register (rule_set, "shlq", orc_neon_rule_shift, (void *)9);
+  orc_rule_register (rule_set, "shrsq", orc_neon_rule_shift, (void *)10);
+  orc_rule_register (rule_set, "shruq", orc_neon_rule_shift, (void *)11);
 
   orc_rule_register (rule_set, "andnb", orc_neon_rule_andn, (void *)3);
   orc_rule_register (rule_set, "andnw", orc_neon_rule_andn, (void *)2);
   orc_rule_register (rule_set, "andnl", orc_neon_rule_andn, (void *)1);
   orc_rule_register (rule_set, "andnq", orc_neon_rule_andn, (void *)0);
+
+  orc_rule_register (rule_set, "divluw", orc_neon_rule_divluw, NULL);
 }
 

@@ -2807,6 +2807,42 @@ mulslq t1, d1, p1
 shrsq t1, t1, 27
 convql d1, t1
 
+.function test_shrsq_shift0
+.dest 8 d1
+.source 8 s1
+
+shrsq d1, s1, 0
+
+.function test_shrsq_shift63
+.dest 8 d1
+.source 8 s1
+
+shrsq d1, s1, 63
+
+.function test_shruq_shift0
+.dest 8 d1
+.source 8 s1
+
+shruq d1, s1, 0
+
+.function test_shruq_shift63
+.dest 8 d1
+.source 8 s1
+
+shruq d1, s1, 63
+
+.function test_shlq_shift0
+.dest 8 d1
+.source 8 s1
+
+shlq d1, s1, 0
+
+.function test_shlq_shift63
+.dest 8 d1
+.source 8 s1
+
+shlq d1, s1, 63
+
 .function sqrt_nx
 .dest 4 dst float
 .source 4 src float
